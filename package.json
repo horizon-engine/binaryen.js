@@ -1,0 +1,42 @@
+{
+  "name": "binaryen",
+  "description": "Browser & Node.js builds of Binaryen, a compiler infrastructure and toolchain library for WebAssembly.",
+  "version": "125.0.0",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/horizon-engine/binaryen.js.git"
+  },
+  "keywords": [
+    "webassembly",
+    "wasm"
+  ],
+  "type": "module",
+  "main": "index.js",
+  "typings": "index.d.ts",
+  "bin": {
+    "wasm-shell": "bin/wasm-shell",
+    "wasm-opt": "bin/wasm-opt",
+    "wasm-metadce": "bin/wasm-metadce",
+    "wasm2js": "bin/wasm2js",
+    "wasm-as": "bin/wasm-as",
+    "wasm-dis": "bin/wasm-dis",
+    "wasm-ctor-eval": "bin/wasm-ctor-eval",
+    "wasm-reduce": "bin/wasm-reduce",
+    "wasm-merge": "bin/wasm-merge"
+  },
+  "scripts": {
+    "check": "tsc index.d.ts --noEmit --strict --noImplicitAny --strictNullChecks --listFiles --diagnostics",
+    "bundle": "node scripts/bundle.js"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "package.json",
+    "bin/*"
+  ],
+  "devDependencies": {
+    "esbuild": "^0.27.2",
+    "typescript": "^5.9.3"
+  }
+}

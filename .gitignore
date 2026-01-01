@@ -1,0 +1,7 @@
+binaryen/
+node_modules/
+npm-debug.*
+package-lock.json
+pnpm-lock.yaml
+pnpm-workspace.yaml
+binaryen/
