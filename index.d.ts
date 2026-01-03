@@ -18,6 +18,20 @@ declare module binaryen {
   const unreachable: Type;
   const auto: Type;
 
+  type HeapType = number;
+
+  const heapTypeExt: HeapType;
+  const heapTypeFunc: HeapType;
+  const heapTypeAny: HeapType;
+  const heapTypeEq: HeapType;
+  const heapTypeI31: HeapType;
+  const heapTypeStruct: HeapType;
+  const heapTypeArray: HeapType;
+  const heapTypeString: HeapType;
+  const heapTypeNone: HeapType;
+  const heapTypeNoext: HeapType;
+  const heapTypeNofunc: HeapType;
+
   function createType(types: Type[]): Type;
   function expandType(type: Type): Type[];
 
@@ -2386,8 +2400,66 @@ declare module binaryen {
     structref: {
       pop(): ExpressionRef;
     };
-    arrayref: {
+    array: {
       pop(): ExpressionRef;
+      "new"(
+        type: HeapType,
+        size: ExpressionRef,
+        init: ExpressionRef,
+      ): ExpressionRef;
+      new_default(type: HeapType, size: ExpressionRef): ExpressionRef;
+      new_fixed(type: HeapType, values: ExpressionRef[]): ExpressionRef;
+      new_data(
+        type: HeapType,
+        name: string,
+        offset: ExpressionRef,
+        size: ExpressionRef,
+      ): ExpressionRef;
+      new_elem(
+        type: HeapType,
+        name: string,
+        offset: ExpressionRef,
+        size: ExpressionRef,
+      ): ExpressionRef;
+      get(
+        ref: ExpressionRef,
+        index: ExpressionRef,
+        type: Type,
+        isSigned: boolean,
+      ): ExpressionRef;
+      set(
+        ref: ExpressionRef,
+        index: ExpressionRef,
+        value: ExpressionRef,
+      ): ExpressionRef;
+      len(ref: ExpressionRef): ExpressionRef;
+      fill(
+        ref: ExpressionRef,
+        index: ExpressionRef,
+        value: ExpressionRef,
+        size: ExpressionRef,
+      );
+      copy(
+        destRef: ExpressionRef,
+        destIndex: ExpressionRef,
+        srcRef: ExpressionRef,
+        srcIndex: ExpressionRef,
+        length: ExpressionRef,
+      );
+      init_data(
+        name: string,
+        ref: ExpressionRef,
+        index: ExpressionRef,
+        offset: ExpressionRef,
+        size: ExpressionRef,
+      );
+      init_elem(
+        name: string,
+        ref: ExpressionRef,
+        index: ExpressionRef,
+        offset: ExpressionRef,
+        size: ExpressionRef,
+      );
     };
     stringref: {
       pop(): ExpressionRef;

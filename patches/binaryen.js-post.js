@@ -4766,12 +4766,6 @@ function wrapModule(module, self = {}) {
     },
   };
 
-  self["arrayref"] = {
-    pop() {
-      return Module["_BinaryenPop"](module, Module["arrayref"]);
-    },
-  };
-
   self["stringref"] = {
     pop() {
       return Module["_BinaryenPop"](module, Module["stringref"]);
@@ -4997,6 +4991,9 @@ function wrapModule(module, self = {}) {
   };
 
   self["array"] = {
+    pop() {
+      return Module["_BinaryenPop"](module, Module["arrayref"]);
+    },
     new(type, size, init) {
       return Module["_BinaryenArrayNew"](module, type, size, init);
     },
