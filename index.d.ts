@@ -2461,9 +2461,12 @@ declare module binaryen {
         size: ExpressionRef,
       );
     };
-    stringref: {
+    string: {
       pop(): ExpressionRef;
       const(value: string): ExpressionRef;
+      concat(left: ExpressionRef, right: ExpressionRef): ExpressionRef;
+      cmp(left: ExpressionRef, right: ExpressionRef): ExpressionRef;
+      eq(left: ExpressionRef, right: ExpressionRef): ExpressionRef;
     };
     ref: {
       null(type: Type): ExpressionRef;

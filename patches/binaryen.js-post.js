@@ -4766,17 +4766,6 @@ function wrapModule(module, self = {}) {
     },
   };
 
-  self["stringref"] = {
-    pop() {
-      return Module["_BinaryenPop"](module, Module["stringref"]);
-    },
-    const(value) {
-      return preserveStack(() => {
-        return Module["_BinaryenStringConst"](module, strToStack(value));
-      });
-    },
-  };
-
   self["ref"] = {
     null(type) {
       return Module["_BinaryenRefNull"](module, type);
@@ -5080,7 +5069,35 @@ function wrapModule(module, self = {}) {
     },
   };
 
-  // TODO: string.*
+  self["string"] = {
+    pop() {
+      return Module["_BinaryenPop"](module, Module["stringref"]);
+    },
+    const(value) {
+      return preserveStack(() => {
+        return Module["_BinaryenStringConst"](module, strToStack(value));
+      });
+    },
+    concat(left, right) {
+      return Module["_BinaryenStringConcat"](module, left, right);
+    },
+    cmp(left, right) {
+      return Module["_BinaryenStringEq"](
+        module,
+        Module["StringEqCompare"],
+        left,
+        right,
+      );
+    },
+    eq(left, right) {
+      return Module["_BinaryenStringEq"](
+        module,
+        Module["StringEqEqual"],
+        left,
+        right,
+      );
+    },
+  };
 
   // 'Module' operations
   self["addFunction"] = function (name, params, results, varTypes, body) {
