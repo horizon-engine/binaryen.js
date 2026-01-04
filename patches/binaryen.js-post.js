@@ -58,6 +58,22 @@ function initializeConstants() {
     Module[entry[0]] = Module["_BinaryenPackedType" + entry[1]]();
   });
 
+  [
+    ["heapTypeExt", "Ext"],
+    ["heapTypeFunc", "Func"],
+    ["heapTypeAny", "Any"],
+    ["heapTypeEq", "Eq"],
+    ["heapTypeI31", "I31"],
+    ["heapTypeStruct", "Struct"],
+    ["heapTypeArray", "Array"],
+    ["heapTypeString", "String"],
+    ["heapTypeNone", "None"],
+    ["heapTypeNoext", "Noext"],
+    ["heapTypeNofunc", "Nofunc"],
+  ].forEach((entry) => {
+    Module[entry[0]] = Module["_BinaryenHeapType" + entry[1]]();
+  });
+
   // Expression ids
   Module["ExpressionIds"] = {};
   [

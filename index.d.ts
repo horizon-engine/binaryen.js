@@ -15,8 +15,17 @@ declare module binaryen {
   const structref: Type;
   const arrayref: Type;
   const stringref: Type;
+  const nullref: Type;
+  const nullexternref: Type;
+  const nullfuncref: Type;
   const unreachable: Type;
   const auto: Type;
+
+  type PackedType = number;
+
+  const notPacked: PackedType;
+  const i8: PackedType;
+  const i16: PackedType;
 
   type HeapType = number;
 
@@ -34,6 +43,8 @@ declare module binaryen {
 
   function createType(types: Type[]): Type;
   function expandType(type: Type): Type[];
+
+  type TypeBuilderRef = number;
 
   const enum ExpressionIds {
     Invalid,
@@ -3135,6 +3146,48 @@ declare module binaryen {
       entry: RelooperBlockRef,
       labelHelper: number,
     ): ExpressionRef;
+  }
+
+  class TypeBuilder {
+    constructor(size: number);
+
+    readonly ptr: TypeBuilderRef;
+
+    grow(count: number): void;
+
+    getSize(): number;
+
+    setSignatureType(index: number, paramTypes: Type, resultTypes: Type): void;
+
+    setStructType(
+      index: number,
+      fields?: {
+        type: Type;
+        packedType: PackedType;
+        mutable: boolean;
+      }[],
+    ): void;
+
+    setArrayType(
+      index: number,
+      elementType: Type,
+      elementPackedType: PackedType,
+      elementMutable: boolean,
+    ): void;
+
+    getTempHeapType(index: number): HeapType;
+
+    getTempTupleType(types: Type[]): Type;
+
+    getTempRefType(heapType: HeapType, nullable: boolean): Type;
+
+    setSubType(index: number, superType: HeapType): void;
+
+    setOpen(index: number): void;
+
+    createRecGroup(index: number, length: number): void;
+
+    buildAndDispose(): HeapType[];
   }
 
   class ExpressionRunner {
