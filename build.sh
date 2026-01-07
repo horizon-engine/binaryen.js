@@ -71,7 +71,7 @@ cp ./patches/binaryen.js-post.js ./binaryen/src/js/binaryen.js-post.js
 
 cd ./binaryen
 
-if ! (emcmake cmake -DBUILD_FOR_BROWSER=ON -DBUILD_TESTS=OFF . && emmake make); then
+if ! (emcmake cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF -DCMAKE_EXE_LINKER_FLAGS="-sSINGLE_FILE" -DENABLE_WERROR=OFF . && emmake make); then
     cd ..
     rm -rf ./binaryen
     exit 1
