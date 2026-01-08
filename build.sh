@@ -71,38 +71,11 @@ cp ./patches/binaryen.js-post.js ./binaryen/src/js/binaryen.js-post.js
 
 cd ./binaryen
 
-if ! (emcmake cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF -DCMAKE_EXE_LINKER_FLAGS="-sSINGLE_FILE" -DENABLE_WERROR=OFF . && emmake make); then
+if ! (emcmake cmake -DBUILD_FOR_BROWSER=ON -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF -DCMAKE_EXE_LINKER_FLAGS="-sSINGLE_FILE" -DENABLE_WERROR=OFF . && emmake make); then
     cd ..
     rm -rf ./binaryen
     exit 1
 fi
 cd ..
 
-rm -f ./index.js
-
-npm install
-npm run bundle
-
-rm -f ./bin/wasm-as
-rm -f ./bin/wasm-ctor-eval
-rm -f ./bin/wasm-dis
-rm -f ./bin/wasm-merge
-rm -f ./bin/wasm-metadce
-rm -f ./bin/wasm-opt
-rm -f ./bin/wasm-reduce
-rm -f ./bin/wasm-shell
-rm -f ./bin/wasm2js
-
-mv ./binaryen/bin/wasm-as.wasm ./bin/wasm-as
-mv ./binaryen/bin/wasm-ctor-eval.wasm ./bin/wasm-ctor-eval
-mv ./binaryen/bin/wasm-dis.wasm ./bin/wasm-dis
-mv ./binaryen/bin/wasm-merge.wasm ./bin/wasm-merge
-mv ./binaryen/bin/wasm-metadce.wasm ./bin/wasm-metadce
-mv ./binaryen/bin/wasm-opt.wasm ./bin/wasm-opt
-mv ./binaryen/bin/wasm-reduce.wasm ./bin/wasm-reduce
-mv ./binaryen/bin/wasm-shell.wasm ./bin/wasm-shell
-mv ./binaryen/bin/wasm2js.wasm ./bin/wasm2js
-
-rm -rf ./binaryen
-
-printf_green "Successfully built patched binaryen.js\n"
+rm -f ./index.js && npm install && npm run bundle && rm -rf ./binaryen && printf_green "Successfully built patched binaryen.js\n"
