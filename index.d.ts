@@ -3201,6 +3201,9 @@ declare module binaryen {
     setGlobalValue(name: string, valueExpr: ExpressionRef): boolean;
     runAndDispose(expr: ExpressionRef): ExpressionRef;
   }
+
+  function BinaryenTypeFromHeapType(heapType: HeapType, nullable: bool): Type;
+  function getHeapType(type: Type): HeapType;
 }
 
 export default binaryen;
