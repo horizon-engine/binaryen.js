@@ -2565,7 +2565,7 @@ declare module binaryen {
     getTableSegments(table: string): string[];
     removeElementSegment(name: string): void;
     addTag(name: string, params: Type, results: Type): TagRef;
-    getTag(name: string): TagRef;
+    getTag(name: string): TagRef | null;
     removeTag(name: string): void;
     addFunctionImport(
       internalName: string,
