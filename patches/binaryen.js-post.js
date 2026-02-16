@@ -58,22 +58,6 @@ function initializeConstants() {
     Module[entry[0]] = Module["_BinaryenPackedType" + entry[1]]();
   });
 
-  [
-    ["heapTypeExt", "Ext"],
-    ["heapTypeFunc", "Func"],
-    ["heapTypeAny", "Any"],
-    ["heapTypeEq", "Eq"],
-    ["heapTypeI31", "I31"],
-    ["heapTypeStruct", "Struct"],
-    ["heapTypeArray", "Array"],
-    ["heapTypeString", "String"],
-    ["heapTypeNone", "None"],
-    ["heapTypeNoext", "Noext"],
-    ["heapTypeNofunc", "Nofunc"],
-  ].forEach((entry) => {
-    Module[entry[0]] = Module["_BinaryenHeapType" + entry[1]]();
-  });
-
   // Expression ids
   Module["ExpressionIds"] = {};
   [
@@ -172,6 +156,13 @@ function initializeConstants() {
       Module["_BinaryenExternal" + name]();
   });
 
+  // MemoryOrder for atomic operations
+  Module["MemoryOrder"] = {};
+  ["Unordered", "SeqCst", "AcqRel"].forEach((name) => {
+    Module["MemoryOrder"][name.toLowerCase()] =
+      Module["_BinaryenMemoryOrder" + name]();
+  });
+
   // Features
   Module["Features"] = {};
   [
@@ -197,6 +188,7 @@ function initializeConstants() {
     "FP16",
     "BulkMemoryOpt",
     "CallIndirectOverlong",
+    "RelaxedAtomics",
     "All",
   ].forEach((name) => {
     Module["Features"][name] = Module["_BinaryenFeature" + name]();
@@ -647,8 +639,9 @@ function initializeConstants() {
 
   // ExpressionRunner flags
   Module["ExpressionRunner"]["Flags"] = {
-    Default: Module["_ExpressionRunnerFlagsDefault"](),
-    PreserveSideeffects: Module["_ExpressionRunnerFlagsPreserveSideeffects"](),
+    "Default": Module["_ExpressionRunnerFlagsDefault"](),
+    "PreserveSideeffects":
+      Module["_ExpressionRunnerFlagsPreserveSideeffects"](),
   };
 }
 
@@ -780,13 +773,13 @@ function wrapModule(module, self = {}) {
   };
 
   self["local"] = {
-    "get": function (index, type) {
+    "get"(index, type) {
       return Module["_BinaryenLocalGet"](module, index, type);
     },
-    "set": function (index, value) {
+    "set"(index, value) {
       return Module["_BinaryenLocalSet"](module, index, value);
     },
-    "tee": function (index, value, type) {
+    "tee"(index, value, type) {
       if (typeof type === "undefined") {
         throw new Error("local.tee's type should be defined");
       }
@@ -795,12 +788,12 @@ function wrapModule(module, self = {}) {
   };
 
   self["global"] = {
-    "get": function (name, type) {
+    "get"(name, type) {
       return preserveStack(() =>
         Module["_BinaryenGlobalGet"](module, strToStack(name), type),
       );
     },
-    "set": function (name, value) {
+    "set"(name, value) {
       return preserveStack(() =>
         Module["_BinaryenGlobalSet"](module, strToStack(name), value),
       );
@@ -808,22 +801,22 @@ function wrapModule(module, self = {}) {
   };
 
   self["table"] = {
-    "get": function (name, index, type) {
+    "get"(name, index, type) {
       return preserveStack(() =>
         Module["_BinaryenTableGet"](module, strToStack(name), index, type),
       );
     },
-    "set": function (name, index, value) {
+    "set"(name, index, value) {
       return preserveStack(() =>
         Module["_BinaryenTableSet"](module, strToStack(name), index, value),
       );
     },
-    "size": function (name) {
+    "size"(name) {
       return preserveStack(() =>
         Module["_BinaryenTableSize"](module, strToStack(name)),
       );
     },
-    "grow": function (name, value, delta) {
+    "grow"(name, value, delta) {
       return preserveStack(() =>
         Module["_BinaryenTableGrow"](module, strToStack(name), value, delta),
       );
@@ -832,12 +825,12 @@ function wrapModule(module, self = {}) {
 
   self["memory"] = {
     // memory64 defaults to undefined/false.
-    "size": function (name, memory64) {
+    "size"(name, memory64) {
       return preserveStack(() =>
         Module["_BinaryenMemorySize"](module, strToStack(name), memory64),
       );
     },
-    "grow": function (value, name, memory64) {
+    "grow"(value, name, memory64) {
       return preserveStack(() =>
         Module["_BinaryenMemoryGrow"](
           module,
@@ -847,7 +840,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "init": function (segment, dest, offset, size, name) {
+    "init"(segment, dest, offset, size, name) {
       return preserveStack(() =>
         Module["_BinaryenMemoryInit"](
           module,
@@ -859,7 +852,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "copy": function (dest, source, size, destMemory, sourceMemory) {
+    "copy"(dest, source, size, destMemory, sourceMemory) {
       return preserveStack(() =>
         Module["_BinaryenMemoryCopy"](
           module,
@@ -871,7 +864,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "fill": function (dest, value, size, name) {
+    "fill"(dest, value, size, name) {
       return preserveStack(() =>
         Module["_BinaryenMemoryFill"](
           module,
@@ -883,7 +876,7 @@ function wrapModule(module, self = {}) {
       );
     },
     "atomic": {
-      "notify": function (ptr, notifyCount, name) {
+      "notify"(ptr, notifyCount, name) {
         return preserveStack(() =>
           Module["_BinaryenAtomicNotify"](
             module,
@@ -893,7 +886,7 @@ function wrapModule(module, self = {}) {
           ),
         );
       },
-      "wait32": function (ptr, expected, timeout, name) {
+      "wait32"(ptr, expected, timeout, name) {
         return preserveStack(() =>
           Module["_BinaryenAtomicWait"](
             module,
@@ -905,7 +898,7 @@ function wrapModule(module, self = {}) {
           ),
         );
       },
-      "wait64": function (ptr, expected, timeout, name) {
+      "wait64"(ptr, expected, timeout, name) {
         return preserveStack(() =>
           Module["_BinaryenAtomicWait"](
             module,
@@ -921,7 +914,7 @@ function wrapModule(module, self = {}) {
   };
 
   self["data"] = {
-    "drop": function (segment) {
+    "drop"(segment) {
       return preserveStack(() =>
         Module["_BinaryenDataDrop"](module, strToStack(segment)),
       );
@@ -929,7 +922,7 @@ function wrapModule(module, self = {}) {
   };
 
   self["i32"] = {
-    "load": function (offset, align, ptr, name) {
+    "load"(offset, align, ptr, name) {
       return preserveStack(() =>
         Module["_BinaryenLoad"](
           module,
@@ -943,7 +936,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "load8_s": function (offset, align, ptr, name) {
+    "load8_s"(offset, align, ptr, name) {
       return preserveStack(() =>
         Module["_BinaryenLoad"](
           module,
@@ -957,7 +950,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "load8_u": function (offset, align, ptr, name) {
+    "load8_u"(offset, align, ptr, name) {
       return preserveStack(() =>
         Module["_BinaryenLoad"](
           module,
@@ -971,7 +964,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "load16_s": function (offset, align, ptr, name) {
+    "load16_s"(offset, align, ptr, name) {
       return preserveStack(() =>
         Module["_BinaryenLoad"](
           module,
@@ -985,7 +978,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "load16_u": function (offset, align, ptr, name) {
+    "load16_u"(offset, align, ptr, name) {
       return preserveStack(() =>
         Module["_BinaryenLoad"](
           module,
@@ -999,7 +992,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "store": function (offset, align, ptr, value, name) {
+    "store"(offset, align, ptr, value, name) {
       return preserveStack(() =>
         Module["_BinaryenStore"](
           module,
@@ -1013,7 +1006,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "store8": function (offset, align, ptr, value, name) {
+    "store8"(offset, align, ptr, value, name) {
       return preserveStack(() =>
         Module["_BinaryenStore"](
           module,
@@ -1027,7 +1020,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "store16": function (offset, align, ptr, value, name) {
+    "store16"(offset, align, ptr, value, name) {
       return preserveStack(() =>
         Module["_BinaryenStore"](
           module,
@@ -1041,34 +1034,34 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "const": function (x) {
+    "const"(x) {
       return preserveStack(() => {
         const tempLiteral = stackAlloc(sizeOfLiteral);
         Module["_BinaryenLiteralInt32"](tempLiteral, x);
         return Module["_BinaryenConst"](module, tempLiteral);
       });
     },
-    "clz": function (value) {
+    "clz"(value) {
       return Module["_BinaryenUnary"](module, Module["ClzInt32"], value);
     },
-    "ctz": function (value) {
+    "ctz"(value) {
       return Module["_BinaryenUnary"](module, Module["CtzInt32"], value);
     },
-    "popcnt": function (value) {
+    "popcnt"(value) {
       return Module["_BinaryenUnary"](module, Module["PopcntInt32"], value);
     },
-    "eqz": function (value) {
+    "eqz"(value) {
       return Module["_BinaryenUnary"](module, Module["EqZInt32"], value);
     },
     "trunc_s": {
-      "f32": function (value) {
+      "f32"(value) {
         return Module["_BinaryenUnary"](
           module,
           Module["TruncSFloat32ToInt32"],
           value,
         );
       },
-      "f64": function (value) {
+      "f64"(value) {
         return Module["_BinaryenUnary"](
           module,
           Module["TruncSFloat64ToInt32"],
@@ -1077,14 +1070,14 @@ function wrapModule(module, self = {}) {
       },
     },
     "trunc_u": {
-      "f32": function (value) {
+      "f32"(value) {
         return Module["_BinaryenUnary"](
           module,
           Module["TruncUFloat32ToInt32"],
           value,
         );
       },
-      "f64": function (value) {
+      "f64"(value) {
         return Module["_BinaryenUnary"](
           module,
           Module["TruncUFloat64ToInt32"],
@@ -1093,14 +1086,14 @@ function wrapModule(module, self = {}) {
       },
     },
     "trunc_s_sat": {
-      "f32": function (value) {
+      "f32"(value) {
         return Module["_BinaryenUnary"](
           module,
           Module["TruncSatSFloat32ToInt32"],
           value,
         );
       },
-      "f64": function (value) {
+      "f64"(value) {
         return Module["_BinaryenUnary"](
           module,
           Module["TruncSatSFloat64ToInt32"],
@@ -1109,14 +1102,14 @@ function wrapModule(module, self = {}) {
       },
     },
     "trunc_u_sat": {
-      "f32": function (value) {
+      "f32"(value) {
         return Module["_BinaryenUnary"](
           module,
           Module["TruncSatUFloat32ToInt32"],
           value,
         );
       },
-      "f64": function (value) {
+      "f64"(value) {
         return Module["_BinaryenUnary"](
           module,
           Module["TruncSatUFloat64ToInt32"],
@@ -1124,32 +1117,32 @@ function wrapModule(module, self = {}) {
         );
       },
     },
-    "reinterpret": function (value) {
+    "reinterpret"(value) {
       return Module["_BinaryenUnary"](
         module,
         Module["ReinterpretFloat32"],
         value,
       );
     },
-    "extend8_s": function (value) {
+    "extend8_s"(value) {
       return Module["_BinaryenUnary"](module, Module["ExtendS8Int32"], value);
     },
-    "extend16_s": function (value) {
+    "extend16_s"(value) {
       return Module["_BinaryenUnary"](module, Module["ExtendS16Int32"], value);
     },
-    "wrap": function (value) {
+    "wrap"(value) {
       return Module["_BinaryenUnary"](module, Module["WrapInt64"], value);
     },
-    "add": function (left, right) {
+    "add"(left, right) {
       return Module["_BinaryenBinary"](module, Module["AddInt32"], left, right);
     },
-    "sub": function (left, right) {
+    "sub"(left, right) {
       return Module["_BinaryenBinary"](module, Module["SubInt32"], left, right);
     },
-    "mul": function (left, right) {
+    "mul"(left, right) {
       return Module["_BinaryenBinary"](module, Module["MulInt32"], left, right);
     },
-    "div_s": function (left, right) {
+    "div_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["DivSInt32"],
@@ -1157,7 +1150,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "div_u": function (left, right) {
+    "div_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["DivUInt32"],
@@ -1165,7 +1158,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "rem_s": function (left, right) {
+    "rem_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["RemSInt32"],
@@ -1173,7 +1166,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "rem_u": function (left, right) {
+    "rem_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["RemUInt32"],
@@ -1181,19 +1174,19 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "and": function (left, right) {
+    "and"(left, right) {
       return Module["_BinaryenBinary"](module, Module["AndInt32"], left, right);
     },
-    "or": function (left, right) {
+    "or"(left, right) {
       return Module["_BinaryenBinary"](module, Module["OrInt32"], left, right);
     },
-    "xor": function (left, right) {
+    "xor"(left, right) {
       return Module["_BinaryenBinary"](module, Module["XorInt32"], left, right);
     },
-    "shl": function (left, right) {
+    "shl"(left, right) {
       return Module["_BinaryenBinary"](module, Module["ShlInt32"], left, right);
     },
-    "shr_u": function (left, right) {
+    "shr_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["ShrUInt32"],
@@ -1201,7 +1194,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "shr_s": function (left, right) {
+    "shr_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["ShrSInt32"],
@@ -1209,7 +1202,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "rotl": function (left, right) {
+    "rotl"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["RotLInt32"],
@@ -1217,7 +1210,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "rotr": function (left, right) {
+    "rotr"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["RotRInt32"],
@@ -1225,38 +1218,38 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "eq": function (left, right) {
+    "eq"(left, right) {
       return Module["_BinaryenBinary"](module, Module["EqInt32"], left, right);
     },
-    "ne": function (left, right) {
+    "ne"(left, right) {
       return Module["_BinaryenBinary"](module, Module["NeInt32"], left, right);
     },
-    "lt_s": function (left, right) {
+    "lt_s"(left, right) {
       return Module["_BinaryenBinary"](module, Module["LtSInt32"], left, right);
     },
-    "lt_u": function (left, right) {
+    "lt_u"(left, right) {
       return Module["_BinaryenBinary"](module, Module["LtUInt32"], left, right);
     },
-    "le_s": function (left, right) {
+    "le_s"(left, right) {
       return Module["_BinaryenBinary"](module, Module["LeSInt32"], left, right);
     },
-    "le_u": function (left, right) {
+    "le_u"(left, right) {
       return Module["_BinaryenBinary"](module, Module["LeUInt32"], left, right);
     },
-    "gt_s": function (left, right) {
+    "gt_s"(left, right) {
       return Module["_BinaryenBinary"](module, Module["GtSInt32"], left, right);
     },
-    "gt_u": function (left, right) {
+    "gt_u"(left, right) {
       return Module["_BinaryenBinary"](module, Module["GtUInt32"], left, right);
     },
-    "ge_s": function (left, right) {
+    "ge_s"(left, right) {
       return Module["_BinaryenBinary"](module, Module["GeSInt32"], left, right);
     },
-    "ge_u": function (left, right) {
+    "ge_u"(left, right) {
       return Module["_BinaryenBinary"](module, Module["GeUInt32"], left, right);
     },
     "atomic": {
-      "load": function (offset, ptr, name) {
+      "load"(offset, ptr, name, order) {
         return preserveStack(() =>
           Module["_BinaryenAtomicLoad"](
             module,
@@ -1265,10 +1258,13 @@ function wrapModule(module, self = {}) {
             Module["i32"],
             ptr,
             strToStack(name),
+            typeof order !== "undefined"
+              ? order
+              : Module["MemoryOrder"]["seqcst"],
           ),
         );
       },
-      "load8_u": function (offset, ptr, name) {
+      "load8_u"(offset, ptr, name, order) {
         return preserveStack(() =>
           Module["_BinaryenAtomicLoad"](
             module,
@@ -1277,10 +1273,13 @@ function wrapModule(module, self = {}) {
             Module["i32"],
             ptr,
             strToStack(name),
+            typeof order !== "undefined"
+              ? order
+              : Module["MemoryOrder"]["seqcst"],
           ),
         );
       },
-      "load16_u": function (offset, ptr, name) {
+      "load16_u"(offset, ptr, name) {
         return preserveStack(() =>
           Module["_BinaryenAtomicLoad"](
             module,
@@ -1289,10 +1288,13 @@ function wrapModule(module, self = {}) {
             Module["i32"],
             ptr,
             strToStack(name),
+            typeof order !== "undefined"
+              ? order
+              : Module["MemoryOrder"]["seqcst"],
           ),
         );
       },
-      "store": function (offset, ptr, value, name) {
+      "store"(offset, ptr, value, name, order) {
         return preserveStack(() =>
           Module["_BinaryenAtomicStore"](
             module,
@@ -1302,10 +1304,13 @@ function wrapModule(module, self = {}) {
             value,
             Module["i32"],
             strToStack(name),
+            typeof order !== "undefined"
+              ? order
+              : Module["MemoryOrder"]["seqcst"],
           ),
         );
       },
-      "store8": function (offset, ptr, value, name) {
+      "store8"(offset, ptr, value, name, order) {
         return preserveStack(() =>
           Module["_BinaryenAtomicStore"](
             module,
@@ -1315,10 +1320,13 @@ function wrapModule(module, self = {}) {
             value,
             Module["i32"],
             strToStack(name),
+            typeof order !== "undefined"
+              ? order
+              : Module["MemoryOrder"]["seqcst"],
           ),
         );
       },
-      "store16": function (offset, ptr, value, name) {
+      "store16"(offset, ptr, value, name, order) {
         return preserveStack(() =>
           Module["_BinaryenAtomicStore"](
             module,
@@ -1328,11 +1336,14 @@ function wrapModule(module, self = {}) {
             value,
             Module["i32"],
             strToStack(name),
+            typeof order !== "undefined"
+              ? order
+              : Module["MemoryOrder"]["seqcst"],
           ),
         );
       },
       "rmw": {
-        "add": function (offset, ptr, value, name) {
+        "add"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -1343,10 +1354,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i32"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "sub": function (offset, ptr, value, name) {
+        "sub"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -1357,10 +1371,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i32"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "and": function (offset, ptr, value, name) {
+        "and"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -1371,10 +1388,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i32"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "or": function (offset, ptr, value, name) {
+        "or"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -1385,10 +1405,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i32"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "xor": function (offset, ptr, value, name) {
+        "xor"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -1399,10 +1422,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i32"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "xchg": function (offset, ptr, value, name) {
+        "xchg"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -1413,10 +1439,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i32"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "cmpxchg": function (offset, ptr, expected, replacement, name) {
+        "cmpxchg"(offset, ptr, expected, replacement, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicCmpxchg"](
               module,
@@ -1427,12 +1456,15 @@ function wrapModule(module, self = {}) {
               replacement,
               Module["i32"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
       },
       "rmw8_u": {
-        "add": function (offset, ptr, value, name) {
+        "add"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -1443,10 +1475,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i32"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "sub": function (offset, ptr, value, name) {
+        "sub"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -1457,10 +1492,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i32"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "and": function (offset, ptr, value, name) {
+        "and"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -1471,10 +1509,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i32"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "or": function (offset, ptr, value, name) {
+        "or"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -1485,10 +1526,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i32"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "xor": function (offset, ptr, value, name) {
+        "xor"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -1499,10 +1543,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i32"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "xchg": function (offset, ptr, value, name) {
+        "xchg"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -1513,10 +1560,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i32"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "cmpxchg": function (offset, ptr, expected, replacement, name) {
+        "cmpxchg"(offset, ptr, expected, replacement, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicCmpxchg"](
               module,
@@ -1527,12 +1577,15 @@ function wrapModule(module, self = {}) {
               replacement,
               Module["i32"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
       },
       "rmw16_u": {
-        "add": function (offset, ptr, value, name) {
+        "add"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -1543,10 +1596,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i32"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "sub": function (offset, ptr, value, name) {
+        "sub"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -1557,10 +1613,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i32"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "and": function (offset, ptr, value, name) {
+        "and"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -1571,10 +1630,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i32"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "or": function (offset, ptr, value, name) {
+        "or"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -1585,10 +1647,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i32"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "xor": function (offset, ptr, value, name) {
+        "xor"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -1599,10 +1664,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i32"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "xchg": function (offset, ptr, value, name) {
+        "xchg"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -1613,10 +1681,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i32"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "cmpxchg": function (offset, ptr, expected, replacement, name) {
+        "cmpxchg"(offset, ptr, expected, replacement, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicCmpxchg"](
               module,
@@ -1627,18 +1698,21 @@ function wrapModule(module, self = {}) {
               replacement,
               Module["i32"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
       },
     },
-    "pop": function () {
+    "pop"() {
       return Module["_BinaryenPop"](module, Module["i32"]);
     },
   };
 
   self["i64"] = {
-    "load": function (offset, align, ptr, name) {
+    "load"(offset, align, ptr, name) {
       return preserveStack(() =>
         Module["_BinaryenLoad"](
           module,
@@ -1652,7 +1726,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "load8_s": function (offset, align, ptr, name) {
+    "load8_s"(offset, align, ptr, name) {
       return preserveStack(() =>
         Module["_BinaryenLoad"](
           module,
@@ -1666,7 +1740,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "load8_u": function (offset, align, ptr, name) {
+    "load8_u"(offset, align, ptr, name) {
       return preserveStack(() =>
         Module["_BinaryenLoad"](
           module,
@@ -1680,7 +1754,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "load16_s": function (offset, align, ptr, name) {
+    "load16_s"(offset, align, ptr, name) {
       return preserveStack(() =>
         Module["_BinaryenLoad"](
           module,
@@ -1694,7 +1768,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "load16_u": function (offset, align, ptr, name) {
+    "load16_u"(offset, align, ptr, name) {
       return preserveStack(() =>
         Module["_BinaryenLoad"](
           module,
@@ -1708,7 +1782,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "load32_s": function (offset, align, ptr, name) {
+    "load32_s"(offset, align, ptr, name) {
       return preserveStack(() =>
         Module["_BinaryenLoad"](
           module,
@@ -1722,7 +1796,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "load32_u": function (offset, align, ptr, name) {
+    "load32_u"(offset, align, ptr, name) {
       return preserveStack(() =>
         Module["_BinaryenLoad"](
           module,
@@ -1736,7 +1810,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "store": function (offset, align, ptr, value, name) {
+    "store"(offset, align, ptr, value, name) {
       return preserveStack(() =>
         Module["_BinaryenStore"](
           module,
@@ -1750,7 +1824,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "store8": function (offset, align, ptr, value, name) {
+    "store8"(offset, align, ptr, value, name) {
       return preserveStack(() =>
         Module["_BinaryenStore"](
           module,
@@ -1764,7 +1838,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "store16": function (offset, align, ptr, value, name) {
+    "store16"(offset, align, ptr, value, name) {
       return preserveStack(() =>
         Module["_BinaryenStore"](
           module,
@@ -1778,7 +1852,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "store32": function (offset, align, ptr, value, name) {
+    "store32"(offset, align, ptr, value, name) {
       return preserveStack(() =>
         Module["_BinaryenStore"](
           module,
@@ -1792,23 +1866,23 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "const": function (x, y) {
+    "const"(x, y) {
       return preserveStack(() => {
         const tempLiteral = stackAlloc(sizeOfLiteral);
         Module["_BinaryenLiteralInt64"](tempLiteral, x, y);
         return Module["_BinaryenConst"](module, tempLiteral);
       });
     },
-    "clz": function (value) {
+    "clz"(value) {
       return Module["_BinaryenUnary"](module, Module["ClzInt64"], value);
     },
-    "ctz": function (value) {
+    "ctz"(value) {
       return Module["_BinaryenUnary"](module, Module["CtzInt64"], value);
     },
-    "popcnt": function (value) {
+    "popcnt"(value) {
       return Module["_BinaryenUnary"](module, Module["PopcntInt64"], value);
     },
-    "eqz": function (value) {
+    "eqz"(value) {
       return Module["_BinaryenUnary"](module, Module["EqZInt64"], value);
     },
     "trunc_s": {
@@ -1844,14 +1918,14 @@ function wrapModule(module, self = {}) {
       },
     },
     "trunc_s_sat": {
-      "f32": function (value) {
+      "f32"(value) {
         return Module["_BinaryenUnary"](
           module,
           Module["TruncSatSFloat32ToInt64"],
           value,
         );
       },
-      "f64": function (value) {
+      "f64"(value) {
         return Module["_BinaryenUnary"](
           module,
           Module["TruncSatSFloat64ToInt64"],
@@ -1860,14 +1934,14 @@ function wrapModule(module, self = {}) {
       },
     },
     "trunc_u_sat": {
-      "f32": function (value) {
+      "f32"(value) {
         return Module["_BinaryenUnary"](
           module,
           Module["TruncSatUFloat32ToInt64"],
           value,
         );
       },
-      "f64": function (value) {
+      "f64"(value) {
         return Module["_BinaryenUnary"](
           module,
           Module["TruncSatUFloat64ToInt64"],
@@ -1875,38 +1949,38 @@ function wrapModule(module, self = {}) {
         );
       },
     },
-    "reinterpret": function (value) {
+    "reinterpret"(value) {
       return Module["_BinaryenUnary"](
         module,
         Module["ReinterpretFloat64"],
         value,
       );
     },
-    "extend8_s": function (value) {
+    "extend8_s"(value) {
       return Module["_BinaryenUnary"](module, Module["ExtendS8Int64"], value);
     },
-    "extend16_s": function (value) {
+    "extend16_s"(value) {
       return Module["_BinaryenUnary"](module, Module["ExtendS16Int64"], value);
     },
-    "extend32_s": function (value) {
+    "extend32_s"(value) {
       return Module["_BinaryenUnary"](module, Module["ExtendS32Int64"], value);
     },
-    "extend_s": function (value) {
+    "extend_s"(value) {
       return Module["_BinaryenUnary"](module, Module["ExtendSInt32"], value);
     },
-    "extend_u": function (value) {
+    "extend_u"(value) {
       return Module["_BinaryenUnary"](module, Module["ExtendUInt32"], value);
     },
-    "add": function (left, right) {
+    "add"(left, right) {
       return Module["_BinaryenBinary"](module, Module["AddInt64"], left, right);
     },
-    "sub": function (left, right) {
+    "sub"(left, right) {
       return Module["_BinaryenBinary"](module, Module["SubInt64"], left, right);
     },
-    "mul": function (left, right) {
+    "mul"(left, right) {
       return Module["_BinaryenBinary"](module, Module["MulInt64"], left, right);
     },
-    "div_s": function (left, right) {
+    "div_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["DivSInt64"],
@@ -1914,7 +1988,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "div_u": function (left, right) {
+    "div_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["DivUInt64"],
@@ -1922,7 +1996,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "rem_s": function (left, right) {
+    "rem_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["RemSInt64"],
@@ -1930,7 +2004,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "rem_u": function (left, right) {
+    "rem_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["RemUInt64"],
@@ -1938,19 +2012,19 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "and": function (left, right) {
+    "and"(left, right) {
       return Module["_BinaryenBinary"](module, Module["AndInt64"], left, right);
     },
-    "or": function (left, right) {
+    "or"(left, right) {
       return Module["_BinaryenBinary"](module, Module["OrInt64"], left, right);
     },
-    "xor": function (left, right) {
+    "xor"(left, right) {
       return Module["_BinaryenBinary"](module, Module["XorInt64"], left, right);
     },
-    "shl": function (left, right) {
+    "shl"(left, right) {
       return Module["_BinaryenBinary"](module, Module["ShlInt64"], left, right);
     },
-    "shr_u": function (left, right) {
+    "shr_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["ShrUInt64"],
@@ -1958,7 +2032,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "shr_s": function (left, right) {
+    "shr_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["ShrSInt64"],
@@ -1966,7 +2040,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "rotl": function (left, right) {
+    "rotl"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["RotLInt64"],
@@ -1974,7 +2048,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "rotr": function (left, right) {
+    "rotr"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["RotRInt64"],
@@ -1982,38 +2056,38 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "eq": function (left, right) {
+    "eq"(left, right) {
       return Module["_BinaryenBinary"](module, Module["EqInt64"], left, right);
     },
-    "ne": function (left, right) {
+    "ne"(left, right) {
       return Module["_BinaryenBinary"](module, Module["NeInt64"], left, right);
     },
-    "lt_s": function (left, right) {
+    "lt_s"(left, right) {
       return Module["_BinaryenBinary"](module, Module["LtSInt64"], left, right);
     },
-    "lt_u": function (left, right) {
+    "lt_u"(left, right) {
       return Module["_BinaryenBinary"](module, Module["LtUInt64"], left, right);
     },
-    "le_s": function (left, right) {
+    "le_s"(left, right) {
       return Module["_BinaryenBinary"](module, Module["LeSInt64"], left, right);
     },
-    "le_u": function (left, right) {
+    "le_u"(left, right) {
       return Module["_BinaryenBinary"](module, Module["LeUInt64"], left, right);
     },
-    "gt_s": function (left, right) {
+    "gt_s"(left, right) {
       return Module["_BinaryenBinary"](module, Module["GtSInt64"], left, right);
     },
-    "gt_u": function (left, right) {
+    "gt_u"(left, right) {
       return Module["_BinaryenBinary"](module, Module["GtUInt64"], left, right);
     },
-    "ge_s": function (left, right) {
+    "ge_s"(left, right) {
       return Module["_BinaryenBinary"](module, Module["GeSInt64"], left, right);
     },
-    "ge_u": function (left, right) {
+    "ge_u"(left, right) {
       return Module["_BinaryenBinary"](module, Module["GeUInt64"], left, right);
     },
     "atomic": {
-      "load": function (offset, ptr, name) {
+      "load"(offset, ptr, name, order) {
         return preserveStack(() =>
           Module["_BinaryenAtomicLoad"](
             module,
@@ -2022,10 +2096,13 @@ function wrapModule(module, self = {}) {
             Module["i64"],
             ptr,
             strToStack(name),
+            typeof order !== "undefined"
+              ? order
+              : Module["MemoryOrder"]["seqcst"],
           ),
         );
       },
-      "load8_u": function (offset, ptr, name) {
+      "load8_u"(offset, ptr, name, order) {
         return preserveStack(() =>
           Module["_BinaryenAtomicLoad"](
             module,
@@ -2034,10 +2111,13 @@ function wrapModule(module, self = {}) {
             Module["i64"],
             ptr,
             strToStack(name),
+            typeof order !== "undefined"
+              ? order
+              : Module["MemoryOrder"]["seqcst"],
           ),
         );
       },
-      "load16_u": function (offset, ptr, name) {
+      "load16_u"(offset, ptr, name, order) {
         return preserveStack(() =>
           Module["_BinaryenAtomicLoad"](
             module,
@@ -2046,10 +2126,13 @@ function wrapModule(module, self = {}) {
             Module["i64"],
             ptr,
             strToStack(name),
+            typeof order !== "undefined"
+              ? order
+              : Module["MemoryOrder"]["seqcst"],
           ),
         );
       },
-      "load32_u": function (offset, ptr, name) {
+      "load32_u"(offset, ptr, name, order) {
         return preserveStack(() =>
           Module["_BinaryenAtomicLoad"](
             module,
@@ -2058,10 +2141,13 @@ function wrapModule(module, self = {}) {
             Module["i64"],
             ptr,
             strToStack(name),
+            typeof order !== "undefined"
+              ? order
+              : Module["MemoryOrder"]["seqcst"],
           ),
         );
       },
-      "store": function (offset, ptr, value, name) {
+      "store"(offset, ptr, value, name, order) {
         return preserveStack(() =>
           Module["_BinaryenAtomicStore"](
             module,
@@ -2071,10 +2157,13 @@ function wrapModule(module, self = {}) {
             value,
             Module["i64"],
             strToStack(name),
+            typeof order !== "undefined"
+              ? order
+              : Module["MemoryOrder"]["seqcst"],
           ),
         );
       },
-      "store8": function (offset, ptr, value, name) {
+      "store8"(offset, ptr, value, name, order) {
         return preserveStack(() =>
           Module["_BinaryenAtomicStore"](
             module,
@@ -2084,10 +2173,13 @@ function wrapModule(module, self = {}) {
             value,
             Module["i64"],
             strToStack(name),
+            typeof order !== "undefined"
+              ? order
+              : Module["MemoryOrder"]["seqcst"],
           ),
         );
       },
-      "store16": function (offset, ptr, value, name) {
+      "store16"(offset, ptr, value, name, order) {
         return preserveStack(() =>
           Module["_BinaryenAtomicStore"](
             module,
@@ -2097,10 +2189,13 @@ function wrapModule(module, self = {}) {
             value,
             Module["i64"],
             strToStack(name),
+            typeof order !== "undefined"
+              ? order
+              : Module["MemoryOrder"]["seqcst"],
           ),
         );
       },
-      "store32": function (offset, ptr, value, name) {
+      "store32"(offset, ptr, value, name, order) {
         return preserveStack(() =>
           Module["_BinaryenAtomicStore"](
             module,
@@ -2110,11 +2205,14 @@ function wrapModule(module, self = {}) {
             value,
             Module["i64"],
             strToStack(name),
+            typeof order !== "undefined"
+              ? order
+              : Module["MemoryOrder"]["seqcst"],
           ),
         );
       },
       "rmw": {
-        "add": function (offset, ptr, value, name) {
+        "add"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -2125,10 +2223,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i64"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "sub": function (offset, ptr, value, name) {
+        "sub"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -2139,10 +2240,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i64"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "and": function (offset, ptr, value, name) {
+        "and"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -2153,10 +2257,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i64"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "or": function (offset, ptr, value, name) {
+        "or"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -2167,10 +2274,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i64"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "xor": function (offset, ptr, value, name) {
+        "xor"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -2181,10 +2291,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i64"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "xchg": function (offset, ptr, value, name) {
+        "xchg"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -2195,10 +2308,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i64"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "cmpxchg": function (offset, ptr, expected, replacement, name) {
+        "cmpxchg"(offset, ptr, expected, replacement, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicCmpxchg"](
               module,
@@ -2209,12 +2325,15 @@ function wrapModule(module, self = {}) {
               replacement,
               Module["i64"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
       },
       "rmw8_u": {
-        "add": function (offset, ptr, value, name) {
+        "add"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -2225,10 +2344,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i64"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "sub": function (offset, ptr, value, name) {
+        "sub"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -2239,10 +2361,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i64"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "and": function (offset, ptr, value, name) {
+        "and"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -2253,10 +2378,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i64"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "or": function (offset, ptr, value, name) {
+        "or"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -2267,10 +2395,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i64"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "xor": function (offset, ptr, value, name) {
+        "xor"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -2281,10 +2412,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i64"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "xchg": function (offset, ptr, value, name) {
+        "xchg"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -2295,10 +2429,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i64"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "cmpxchg": function (offset, ptr, expected, replacement, name) {
+        "cmpxchg"(offset, ptr, expected, replacement, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicCmpxchg"](
               module,
@@ -2309,12 +2446,15 @@ function wrapModule(module, self = {}) {
               replacement,
               Module["i64"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
       },
       "rmw16_u": {
-        "add": function (offset, ptr, value, name) {
+        "add"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -2325,10 +2465,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i64"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "sub": function (offset, ptr, value, name) {
+        "sub"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -2339,10 +2482,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i64"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "and": function (offset, ptr, value, name) {
+        "and"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -2353,10 +2499,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i64"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "or": function (offset, ptr, value, name) {
+        "or"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -2367,10 +2516,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i64"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "xor": function (offset, ptr, value, name) {
+        "xor"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -2381,10 +2533,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i64"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "xchg": function (offset, ptr, value, name) {
+        "xchg"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -2395,10 +2550,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i64"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "cmpxchg": function (offset, ptr, expected, replacement, name) {
+        "cmpxchg"(offset, ptr, expected, replacement, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicCmpxchg"](
               module,
@@ -2409,12 +2567,15 @@ function wrapModule(module, self = {}) {
               replacement,
               Module["i64"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
       },
       "rmw32_u": {
-        "add": function (offset, ptr, value, name) {
+        "add"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -2425,10 +2586,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i64"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "sub": function (offset, ptr, value, name) {
+        "sub"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -2439,10 +2603,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i64"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "and": function (offset, ptr, value, name) {
+        "and"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -2453,10 +2620,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i64"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "or": function (offset, ptr, value, name) {
+        "or"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -2467,10 +2637,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i64"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "xor": function (offset, ptr, value, name) {
+        "xor"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -2481,10 +2654,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i64"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "xchg": function (offset, ptr, value, name) {
+        "xchg"(offset, ptr, value, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicRMW"](
               module,
@@ -2495,10 +2671,13 @@ function wrapModule(module, self = {}) {
               value,
               Module["i64"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
-        "cmpxchg": function (offset, ptr, expected, replacement, name) {
+        "cmpxchg"(offset, ptr, expected, replacement, name, order) {
           return preserveStack(() =>
             Module["_BinaryenAtomicCmpxchg"](
               module,
@@ -2509,18 +2688,21 @@ function wrapModule(module, self = {}) {
               replacement,
               Module["i64"],
               strToStack(name),
+              typeof order !== "undefined"
+                ? order
+                : Module["MemoryOrder"]["seqcst"],
             ),
           );
         },
       },
     },
-    "pop": function () {
+    "pop"() {
       return Module["_BinaryenPop"](module, Module["i64"]);
     },
   };
 
   self["f32"] = {
-    "load": function (offset, align, ptr, name) {
+    "load"(offset, align, ptr, name) {
       return preserveStack(() =>
         Module["_BinaryenLoad"](
           module,
@@ -2534,7 +2716,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "store": function (offset, align, ptr, value, name) {
+    "store"(offset, align, ptr, value, name) {
       return preserveStack(() =>
         Module["_BinaryenStore"](
           module,
@@ -2548,42 +2730,42 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "const": function (x) {
+    "const"(x) {
       return preserveStack(() => {
         const tempLiteral = stackAlloc(sizeOfLiteral);
         Module["_BinaryenLiteralFloat32"](tempLiteral, x);
         return Module["_BinaryenConst"](module, tempLiteral);
       });
     },
-    "const_bits": function (x) {
+    "const_bits"(x) {
       return preserveStack(() => {
         const tempLiteral = stackAlloc(sizeOfLiteral);
         Module["_BinaryenLiteralFloat32Bits"](tempLiteral, x);
         return Module["_BinaryenConst"](module, tempLiteral);
       });
     },
-    "neg": function (value) {
+    "neg"(value) {
       return Module["_BinaryenUnary"](module, Module["NegFloat32"], value);
     },
-    "abs": function (value) {
+    "abs"(value) {
       return Module["_BinaryenUnary"](module, Module["AbsFloat32"], value);
     },
-    "ceil": function (value) {
+    "ceil"(value) {
       return Module["_BinaryenUnary"](module, Module["CeilFloat32"], value);
     },
-    "floor": function (value) {
+    "floor"(value) {
       return Module["_BinaryenUnary"](module, Module["FloorFloat32"], value);
     },
-    "trunc": function (value) {
+    "trunc"(value) {
       return Module["_BinaryenUnary"](module, Module["TruncFloat32"], value);
     },
-    "nearest": function (value) {
+    "nearest"(value) {
       return Module["_BinaryenUnary"](module, Module["NearestFloat32"], value);
     },
-    "sqrt": function (value) {
+    "sqrt"(value) {
       return Module["_BinaryenUnary"](module, Module["SqrtFloat32"], value);
     },
-    "reinterpret": function (value) {
+    "reinterpret"(value) {
       return Module["_BinaryenUnary"](
         module,
         Module["ReinterpretInt32"],
@@ -2591,14 +2773,14 @@ function wrapModule(module, self = {}) {
       );
     },
     "convert_s": {
-      "i32": function (value) {
+      "i32"(value) {
         return Module["_BinaryenUnary"](
           module,
           Module["ConvertSInt32ToFloat32"],
           value,
         );
       },
-      "i64": function (value) {
+      "i64"(value) {
         return Module["_BinaryenUnary"](
           module,
           Module["ConvertSInt64ToFloat32"],
@@ -2607,14 +2789,14 @@ function wrapModule(module, self = {}) {
       },
     },
     "convert_u": {
-      "i32": function (value) {
+      "i32"(value) {
         return Module["_BinaryenUnary"](
           module,
           Module["ConvertUInt32ToFloat32"],
           value,
         );
       },
-      "i64": function (value) {
+      "i64"(value) {
         return Module["_BinaryenUnary"](
           module,
           Module["ConvertUInt64ToFloat32"],
@@ -2622,10 +2804,10 @@ function wrapModule(module, self = {}) {
         );
       },
     },
-    "demote": function (value) {
+    "demote"(value) {
       return Module["_BinaryenUnary"](module, Module["DemoteFloat64"], value);
     },
-    "add": function (left, right) {
+    "add"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["AddFloat32"],
@@ -2633,7 +2815,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "sub": function (left, right) {
+    "sub"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["SubFloat32"],
@@ -2641,7 +2823,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "mul": function (left, right) {
+    "mul"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["MulFloat32"],
@@ -2649,7 +2831,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "div": function (left, right) {
+    "div"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["DivFloat32"],
@@ -2657,7 +2839,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "copysign": function (left, right) {
+    "copysign"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["CopySignFloat32"],
@@ -2665,7 +2847,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "min": function (left, right) {
+    "min"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["MinFloat32"],
@@ -2673,7 +2855,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "max": function (left, right) {
+    "max"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["MaxFloat32"],
@@ -2681,7 +2863,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "eq": function (left, right) {
+    "eq"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["EqFloat32"],
@@ -2689,7 +2871,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "ne": function (left, right) {
+    "ne"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["NeFloat32"],
@@ -2697,7 +2879,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "lt": function (left, right) {
+    "lt"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["LtFloat32"],
@@ -2705,7 +2887,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "le": function (left, right) {
+    "le"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["LeFloat32"],
@@ -2713,7 +2895,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "gt": function (left, right) {
+    "gt"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["GtFloat32"],
@@ -2721,7 +2903,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "ge": function (left, right) {
+    "ge"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["GeFloat32"],
@@ -2729,13 +2911,13 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "pop": function () {
+    "pop"() {
       return Module["_BinaryenPop"](module, Module["f32"]);
     },
   };
 
   self["f64"] = {
-    "load": function (offset, align, ptr, name) {
+    "load"(offset, align, ptr, name) {
       return preserveStack(() =>
         Module["_BinaryenLoad"](
           module,
@@ -2749,7 +2931,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "store": function (offset, align, ptr, value, name) {
+    "store"(offset, align, ptr, value, name) {
       return preserveStack(() =>
         Module["_BinaryenStore"](
           module,
@@ -2763,42 +2945,42 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "const": function (x) {
+    "const"(x) {
       return preserveStack(() => {
         const tempLiteral = stackAlloc(sizeOfLiteral);
         Module["_BinaryenLiteralFloat64"](tempLiteral, x);
         return Module["_BinaryenConst"](module, tempLiteral);
       });
     },
-    "const_bits": function (x, y) {
+    "const_bits"(x, y) {
       return preserveStack(() => {
         const tempLiteral = stackAlloc(sizeOfLiteral);
         Module["_BinaryenLiteralFloat64Bits"](tempLiteral, x, y);
         return Module["_BinaryenConst"](module, tempLiteral);
       });
     },
-    "neg": function (value) {
+    "neg"(value) {
       return Module["_BinaryenUnary"](module, Module["NegFloat64"], value);
     },
-    "abs": function (value) {
+    "abs"(value) {
       return Module["_BinaryenUnary"](module, Module["AbsFloat64"], value);
     },
-    "ceil": function (value) {
+    "ceil"(value) {
       return Module["_BinaryenUnary"](module, Module["CeilFloat64"], value);
     },
-    "floor": function (value) {
+    "floor"(value) {
       return Module["_BinaryenUnary"](module, Module["FloorFloat64"], value);
     },
-    "trunc": function (value) {
+    "trunc"(value) {
       return Module["_BinaryenUnary"](module, Module["TruncFloat64"], value);
     },
-    "nearest": function (value) {
+    "nearest"(value) {
       return Module["_BinaryenUnary"](module, Module["NearestFloat64"], value);
     },
-    "sqrt": function (value) {
+    "sqrt"(value) {
       return Module["_BinaryenUnary"](module, Module["SqrtFloat64"], value);
     },
-    "reinterpret": function (value) {
+    "reinterpret"(value) {
       return Module["_BinaryenUnary"](
         module,
         Module["ReinterpretInt64"],
@@ -2806,14 +2988,14 @@ function wrapModule(module, self = {}) {
       );
     },
     "convert_s": {
-      "i32": function (value) {
+      "i32"(value) {
         return Module["_BinaryenUnary"](
           module,
           Module["ConvertSInt32ToFloat64"],
           value,
         );
       },
-      "i64": function (value) {
+      "i64"(value) {
         return Module["_BinaryenUnary"](
           module,
           Module["ConvertSInt64ToFloat64"],
@@ -2822,14 +3004,14 @@ function wrapModule(module, self = {}) {
       },
     },
     "convert_u": {
-      "i32": function (value) {
+      "i32"(value) {
         return Module["_BinaryenUnary"](
           module,
           Module["ConvertUInt32ToFloat64"],
           value,
         );
       },
-      "i64": function (value) {
+      "i64"(value) {
         return Module["_BinaryenUnary"](
           module,
           Module["ConvertUInt64ToFloat64"],
@@ -2837,10 +3019,10 @@ function wrapModule(module, self = {}) {
         );
       },
     },
-    "promote": function (value) {
+    "promote"(value) {
       return Module["_BinaryenUnary"](module, Module["PromoteFloat32"], value);
     },
-    "add": function (left, right) {
+    "add"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["AddFloat64"],
@@ -2848,7 +3030,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "sub": function (left, right) {
+    "sub"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["SubFloat64"],
@@ -2856,7 +3038,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "mul": function (left, right) {
+    "mul"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["MulFloat64"],
@@ -2864,7 +3046,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "div": function (left, right) {
+    "div"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["DivFloat64"],
@@ -2872,7 +3054,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "copysign": function (left, right) {
+    "copysign"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["CopySignFloat64"],
@@ -2880,7 +3062,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "min": function (left, right) {
+    "min"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["MinFloat64"],
@@ -2888,7 +3070,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "max": function (left, right) {
+    "max"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["MaxFloat64"],
@@ -2896,7 +3078,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "eq": function (left, right) {
+    "eq"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["EqFloat64"],
@@ -2904,7 +3086,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "ne": function (left, right) {
+    "ne"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["NeFloat64"],
@@ -2912,7 +3094,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "lt": function (left, right) {
+    "lt"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["LtFloat64"],
@@ -2920,7 +3102,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "le": function (left, right) {
+    "le"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["LeFloat64"],
@@ -2928,7 +3110,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "gt": function (left, right) {
+    "gt"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["GtFloat64"],
@@ -2936,7 +3118,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "ge": function (left, right) {
+    "ge"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["GeFloat64"],
@@ -2944,13 +3126,13 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "pop": function () {
+    "pop"() {
       return Module["_BinaryenPop"](module, Module["f64"]);
     },
   };
 
   self["v128"] = {
-    "load": function (offset, align, ptr, name) {
+    "load"(offset, align, ptr, name) {
       return preserveStack(() =>
         Module["_BinaryenLoad"](
           module,
@@ -2964,7 +3146,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "load8_splat": function (offset, align, ptr, name) {
+    "load8_splat"(offset, align, ptr, name) {
       return preserveStack(() =>
         Module["_BinaryenSIMDLoad"](
           module,
@@ -2976,7 +3158,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "load16_splat": function (offset, align, ptr, name) {
+    "load16_splat"(offset, align, ptr, name) {
       return preserveStack(() =>
         Module["_BinaryenSIMDLoad"](
           module,
@@ -2988,7 +3170,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "load32_splat": function (offset, align, ptr, name) {
+    "load32_splat"(offset, align, ptr, name) {
       return preserveStack(() =>
         Module["_BinaryenSIMDLoad"](
           module,
@@ -3000,7 +3182,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "load64_splat": function (offset, align, ptr, name) {
+    "load64_splat"(offset, align, ptr, name) {
       return preserveStack(() =>
         Module["_BinaryenSIMDLoad"](
           module,
@@ -3012,7 +3194,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "load8x8_s": function (offset, align, ptr, name) {
+    "load8x8_s"(offset, align, ptr, name) {
       return preserveStack(() =>
         Module["_BinaryenSIMDLoad"](
           module,
@@ -3024,7 +3206,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "load8x8_u": function (offset, align, ptr, name) {
+    "load8x8_u"(offset, align, ptr, name) {
       return preserveStack(() =>
         Module["_BinaryenSIMDLoad"](
           module,
@@ -3036,7 +3218,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "load16x4_s": function (offset, align, ptr, name) {
+    "load16x4_s"(offset, align, ptr, name) {
       return preserveStack(() =>
         Module["_BinaryenSIMDLoad"](
           module,
@@ -3048,7 +3230,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "load16x4_u": function (offset, align, ptr, name) {
+    "load16x4_u"(offset, align, ptr, name) {
       return preserveStack(() =>
         Module["_BinaryenSIMDLoad"](
           module,
@@ -3060,7 +3242,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "load32x2_s": function (offset, align, ptr, name) {
+    "load32x2_s"(offset, align, ptr, name) {
       return preserveStack(() =>
         Module["_BinaryenSIMDLoad"](
           module,
@@ -3072,7 +3254,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "load32x2_u": function (offset, align, ptr, name) {
+    "load32x2_u"(offset, align, ptr, name) {
       return preserveStack(() =>
         Module["_BinaryenSIMDLoad"](
           module,
@@ -3084,7 +3266,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "load32_zero": function (offset, align, ptr, name) {
+    "load32_zero"(offset, align, ptr, name) {
       return preserveStack(() =>
         Module["_BinaryenSIMDLoad"](
           module,
@@ -3096,7 +3278,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "load64_zero": function (offset, align, ptr, name) {
+    "load64_zero"(offset, align, ptr, name) {
       return preserveStack(() =>
         Module["_BinaryenSIMDLoad"](
           module,
@@ -3108,7 +3290,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "load8_lane": function (offset, align, index, ptr, vec, name) {
+    "load8_lane"(offset, align, index, ptr, vec, name) {
       return preserveStack(() =>
         Module["_BinaryenSIMDLoadStoreLane"](
           module,
@@ -3122,7 +3304,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "load16_lane": function (offset, align, index, ptr, vec, name) {
+    "load16_lane"(offset, align, index, ptr, vec, name) {
       return preserveStack(() =>
         Module["_BinaryenSIMDLoadStoreLane"](
           module,
@@ -3136,7 +3318,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "load32_lane": function (offset, align, index, ptr, vec, name) {
+    "load32_lane"(offset, align, index, ptr, vec, name) {
       return preserveStack(() =>
         Module["_BinaryenSIMDLoadStoreLane"](
           module,
@@ -3150,7 +3332,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "load64_lane": function (offset, align, index, ptr, vec, name) {
+    "load64_lane"(offset, align, index, ptr, vec, name) {
       return preserveStack(() =>
         Module["_BinaryenSIMDLoadStoreLane"](
           module,
@@ -3164,7 +3346,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "store8_lane": function (offset, align, index, ptr, vec, name) {
+    "store8_lane"(offset, align, index, ptr, vec, name) {
       return preserveStack(() =>
         Module["_BinaryenSIMDLoadStoreLane"](
           module,
@@ -3178,7 +3360,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "store16_lane": function (offset, align, index, ptr, vec, name) {
+    "store16_lane"(offset, align, index, ptr, vec, name) {
       return preserveStack(() =>
         Module["_BinaryenSIMDLoadStoreLane"](
           module,
@@ -3192,7 +3374,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "store32_lane": function (offset, align, index, ptr, vec, name) {
+    "store32_lane"(offset, align, index, ptr, vec, name) {
       return preserveStack(() =>
         Module["_BinaryenSIMDLoadStoreLane"](
           module,
@@ -3206,7 +3388,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "store64_lane": function (offset, align, index, ptr, vec, name) {
+    "store64_lane"(offset, align, index, ptr, vec, name) {
       return preserveStack(() =>
         Module["_BinaryenSIMDLoadStoreLane"](
           module,
@@ -3220,7 +3402,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "store": function (offset, align, ptr, value, name) {
+    "store"(offset, align, ptr, value, name) {
       return preserveStack(() =>
         Module["_BinaryenStore"](
           module,
@@ -3234,20 +3416,20 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "const": function (i8s) {
+    "const"(i8s) {
       return preserveStack(() => {
         const tempLiteral = stackAlloc(sizeOfLiteral);
         Module["_BinaryenLiteralVec128"](tempLiteral, i8sToStack(i8s));
         return Module["_BinaryenConst"](module, tempLiteral);
       });
     },
-    "not": function (value) {
+    "not"(value) {
       return Module["_BinaryenUnary"](module, Module["NotVec128"], value);
     },
-    "any_true": function (value) {
+    "any_true"(value) {
       return Module["_BinaryenUnary"](module, Module["AnyTrueVec128"], value);
     },
-    "and": function (left, right) {
+    "and"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["AndVec128"],
@@ -3255,10 +3437,10 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "or": function (left, right) {
+    "or"(left, right) {
       return Module["_BinaryenBinary"](module, Module["OrVec128"], left, right);
     },
-    "xor": function (left, right) {
+    "xor"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["XorVec128"],
@@ -3266,7 +3448,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "andnot": function (left, right) {
+    "andnot"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["AndNotVec128"],
@@ -3274,7 +3456,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "bitselect": function (left, right, cond) {
+    "bitselect"(left, right, cond) {
       return Module["_BinaryenSIMDTernary"](
         module,
         Module["BitselectVec128"],
@@ -3283,18 +3465,18 @@ function wrapModule(module, self = {}) {
         cond,
       );
     },
-    "pop": function () {
+    "pop"() {
       return Module["_BinaryenPop"](module, Module["v128"]);
     },
   };
 
   self["i8x16"] = {
-    "shuffle": function (left, right, mask) {
+    "shuffle"(left, right, mask) {
       return preserveStack(() =>
         Module["_BinaryenSIMDShuffle"](module, left, right, i8sToStack(mask)),
       );
     },
-    "swizzle": function (left, right) {
+    "swizzle"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["SwizzleVecI8x16"],
@@ -3302,10 +3484,10 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "splat": function (value) {
+    "splat"(value) {
       return Module["_BinaryenUnary"](module, Module["SplatVecI8x16"], value);
     },
-    "extract_lane_s": function (vec, index) {
+    "extract_lane_s"(vec, index) {
       return Module["_BinaryenSIMDExtract"](
         module,
         Module["ExtractLaneSVecI8x16"],
@@ -3313,7 +3495,7 @@ function wrapModule(module, self = {}) {
         index,
       );
     },
-    "extract_lane_u": function (vec, index) {
+    "extract_lane_u"(vec, index) {
       return Module["_BinaryenSIMDExtract"](
         module,
         Module["ExtractLaneUVecI8x16"],
@@ -3321,7 +3503,7 @@ function wrapModule(module, self = {}) {
         index,
       );
     },
-    "replace_lane": function (vec, index, value) {
+    "replace_lane"(vec, index, value) {
       return Module["_BinaryenSIMDReplace"](
         module,
         Module["ReplaceLaneVecI8x16"],
@@ -3330,7 +3512,7 @@ function wrapModule(module, self = {}) {
         value,
       );
     },
-    "eq": function (left, right) {
+    "eq"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["EqVecI8x16"],
@@ -3338,7 +3520,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "ne": function (left, right) {
+    "ne"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["NeVecI8x16"],
@@ -3346,7 +3528,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "lt_s": function (left, right) {
+    "lt_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["LtSVecI8x16"],
@@ -3354,7 +3536,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "lt_u": function (left, right) {
+    "lt_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["LtUVecI8x16"],
@@ -3362,7 +3544,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "gt_s": function (left, right) {
+    "gt_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["GtSVecI8x16"],
@@ -3370,7 +3552,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "gt_u": function (left, right) {
+    "gt_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["GtUVecI8x16"],
@@ -3378,7 +3560,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "le_s": function (left, right) {
+    "le_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["LeSVecI8x16"],
@@ -3386,7 +3568,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "le_u": function (left, right) {
+    "le_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["LeUVecI8x16"],
@@ -3394,7 +3576,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "ge_s": function (left, right) {
+    "ge_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["GeSVecI8x16"],
@@ -3402,7 +3584,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "ge_u": function (left, right) {
+    "ge_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["GeUVecI8x16"],
@@ -3410,22 +3592,22 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "abs": function (value) {
+    "abs"(value) {
       return Module["_BinaryenUnary"](module, Module["AbsVecI8x16"], value);
     },
-    "neg": function (value) {
+    "neg"(value) {
       return Module["_BinaryenUnary"](module, Module["NegVecI8x16"], value);
     },
-    "all_true": function (value) {
+    "all_true"(value) {
       return Module["_BinaryenUnary"](module, Module["AllTrueVecI8x16"], value);
     },
-    "bitmask": function (value) {
+    "bitmask"(value) {
       return Module["_BinaryenUnary"](module, Module["BitmaskVecI8x16"], value);
     },
-    "popcnt": function (value) {
+    "popcnt"(value) {
       return Module["_BinaryenUnary"](module, Module["PopcntVecI8x16"], value);
     },
-    "shl": function (vec, shift) {
+    "shl"(vec, shift) {
       return Module["_BinaryenSIMDShift"](
         module,
         Module["ShlVecI8x16"],
@@ -3433,7 +3615,7 @@ function wrapModule(module, self = {}) {
         shift,
       );
     },
-    "shr_s": function (vec, shift) {
+    "shr_s"(vec, shift) {
       return Module["_BinaryenSIMDShift"](
         module,
         Module["ShrSVecI8x16"],
@@ -3441,7 +3623,7 @@ function wrapModule(module, self = {}) {
         shift,
       );
     },
-    "shr_u": function (vec, shift) {
+    "shr_u"(vec, shift) {
       return Module["_BinaryenSIMDShift"](
         module,
         Module["ShrUVecI8x16"],
@@ -3449,7 +3631,7 @@ function wrapModule(module, self = {}) {
         shift,
       );
     },
-    "add": function (left, right) {
+    "add"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["AddVecI8x16"],
@@ -3457,7 +3639,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "add_saturate_s": function (left, right) {
+    "add_saturate_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["AddSatSVecI8x16"],
@@ -3465,7 +3647,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "add_saturate_u": function (left, right) {
+    "add_saturate_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["AddSatUVecI8x16"],
@@ -3473,7 +3655,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "sub": function (left, right) {
+    "sub"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["SubVecI8x16"],
@@ -3481,7 +3663,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "sub_saturate_s": function (left, right) {
+    "sub_saturate_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["SubSatSVecI8x16"],
@@ -3489,7 +3671,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "sub_saturate_u": function (left, right) {
+    "sub_saturate_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["SubSatUVecI8x16"],
@@ -3497,7 +3679,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "min_s": function (left, right) {
+    "min_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["MinSVecI8x16"],
@@ -3505,7 +3687,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "min_u": function (left, right) {
+    "min_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["MinUVecI8x16"],
@@ -3513,7 +3695,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "max_s": function (left, right) {
+    "max_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["MaxSVecI8x16"],
@@ -3521,7 +3703,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "max_u": function (left, right) {
+    "max_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["MaxUVecI8x16"],
@@ -3529,7 +3711,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "avgr_u": function (left, right) {
+    "avgr_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["AvgrUVecI8x16"],
@@ -3537,7 +3719,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "narrow_i16x8_s": function (left, right) {
+    "narrow_i16x8_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["NarrowSVecI16x8ToVecI8x16"],
@@ -3545,7 +3727,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "narrow_i16x8_u": function (left, right) {
+    "narrow_i16x8_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["NarrowUVecI16x8ToVecI8x16"],
@@ -3556,10 +3738,10 @@ function wrapModule(module, self = {}) {
   };
 
   self["i16x8"] = {
-    "splat": function (value) {
+    "splat"(value) {
       return Module["_BinaryenUnary"](module, Module["SplatVecI16x8"], value);
     },
-    "extract_lane_s": function (vec, index) {
+    "extract_lane_s"(vec, index) {
       return Module["_BinaryenSIMDExtract"](
         module,
         Module["ExtractLaneSVecI16x8"],
@@ -3567,7 +3749,7 @@ function wrapModule(module, self = {}) {
         index,
       );
     },
-    "extract_lane_u": function (vec, index) {
+    "extract_lane_u"(vec, index) {
       return Module["_BinaryenSIMDExtract"](
         module,
         Module["ExtractLaneUVecI16x8"],
@@ -3575,7 +3757,7 @@ function wrapModule(module, self = {}) {
         index,
       );
     },
-    "replace_lane": function (vec, index, value) {
+    "replace_lane"(vec, index, value) {
       return Module["_BinaryenSIMDReplace"](
         module,
         Module["ReplaceLaneVecI16x8"],
@@ -3584,7 +3766,7 @@ function wrapModule(module, self = {}) {
         value,
       );
     },
-    "eq": function (left, right) {
+    "eq"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["EqVecI16x8"],
@@ -3592,7 +3774,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "ne": function (left, right) {
+    "ne"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["NeVecI16x8"],
@@ -3600,7 +3782,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "lt_s": function (left, right) {
+    "lt_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["LtSVecI16x8"],
@@ -3608,7 +3790,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "lt_u": function (left, right) {
+    "lt_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["LtUVecI16x8"],
@@ -3616,7 +3798,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "gt_s": function (left, right) {
+    "gt_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["GtSVecI16x8"],
@@ -3624,7 +3806,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "gt_u": function (left, right) {
+    "gt_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["GtUVecI16x8"],
@@ -3632,7 +3814,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "le_s": function (left, right) {
+    "le_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["LeSVecI16x8"],
@@ -3640,7 +3822,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "le_u": function (left, right) {
+    "le_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["LeUVecI16x8"],
@@ -3648,7 +3830,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "ge_s": function (left, right) {
+    "ge_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["GeSVecI16x8"],
@@ -3656,7 +3838,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "ge_u": function (left, right) {
+    "ge_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["GeUVecI16x8"],
@@ -3664,19 +3846,19 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "abs": function (value) {
+    "abs"(value) {
       return Module["_BinaryenUnary"](module, Module["AbsVecI16x8"], value);
     },
-    "neg": function (value) {
+    "neg"(value) {
       return Module["_BinaryenUnary"](module, Module["NegVecI16x8"], value);
     },
-    "all_true": function (value) {
+    "all_true"(value) {
       return Module["_BinaryenUnary"](module, Module["AllTrueVecI16x8"], value);
     },
-    "bitmask": function (value) {
+    "bitmask"(value) {
       return Module["_BinaryenUnary"](module, Module["BitmaskVecI16x8"], value);
     },
-    "shl": function (vec, shift) {
+    "shl"(vec, shift) {
       return Module["_BinaryenSIMDShift"](
         module,
         Module["ShlVecI16x8"],
@@ -3684,7 +3866,7 @@ function wrapModule(module, self = {}) {
         shift,
       );
     },
-    "shr_s": function (vec, shift) {
+    "shr_s"(vec, shift) {
       return Module["_BinaryenSIMDShift"](
         module,
         Module["ShrSVecI16x8"],
@@ -3692,7 +3874,7 @@ function wrapModule(module, self = {}) {
         shift,
       );
     },
-    "shr_u": function (vec, shift) {
+    "shr_u"(vec, shift) {
       return Module["_BinaryenSIMDShift"](
         module,
         Module["ShrUVecI16x8"],
@@ -3700,7 +3882,7 @@ function wrapModule(module, self = {}) {
         shift,
       );
     },
-    "add": function (left, right) {
+    "add"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["AddVecI16x8"],
@@ -3708,7 +3890,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "add_saturate_s": function (left, right) {
+    "add_saturate_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["AddSatSVecI16x8"],
@@ -3716,7 +3898,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "add_saturate_u": function (left, right) {
+    "add_saturate_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["AddSatUVecI16x8"],
@@ -3724,7 +3906,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "sub": function (left, right) {
+    "sub"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["SubVecI16x8"],
@@ -3732,7 +3914,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "sub_saturate_s": function (left, right) {
+    "sub_saturate_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["SubSatSVecI16x8"],
@@ -3740,7 +3922,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "sub_saturate_u": function (left, right) {
+    "sub_saturate_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["SubSatUVecI16x8"],
@@ -3748,7 +3930,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "mul": function (left, right) {
+    "mul"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["MulVecI16x8"],
@@ -3756,7 +3938,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "min_s": function (left, right) {
+    "min_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["MinSVecI16x8"],
@@ -3764,7 +3946,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "min_u": function (left, right) {
+    "min_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["MinUVecI16x8"],
@@ -3772,7 +3954,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "max_s": function (left, right) {
+    "max_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["MaxSVecI16x8"],
@@ -3780,7 +3962,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "max_u": function (left, right) {
+    "max_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["MaxUVecI16x8"],
@@ -3788,7 +3970,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "avgr_u": function (left, right) {
+    "avgr_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["AvgrUVecI16x8"],
@@ -3796,7 +3978,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "q15mulr_sat_s": function (left, right) {
+    "q15mulr_sat_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["Q15MulrSatSVecI16x8"],
@@ -3804,7 +3986,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "extmul_low_i8x16_s": function (left, right) {
+    "extmul_low_i8x16_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["ExtMulLowSVecI16x8"],
@@ -3812,7 +3994,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "extmul_high_i8x16_s": function (left, right) {
+    "extmul_high_i8x16_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["ExtMulHighSVecI16x8"],
@@ -3820,7 +4002,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "extmul_low_i8x16_u": function (left, right) {
+    "extmul_low_i8x16_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["ExtMulLowUVecI16x8"],
@@ -3828,7 +4010,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "extmul_high_i8x16_u": function (left, right) {
+    "extmul_high_i8x16_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["ExtMulHighUVecI16x8"],
@@ -3836,21 +4018,21 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "extadd_pairwise_i8x16_s": function (value) {
+    "extadd_pairwise_i8x16_s"(value) {
       return Module["_BinaryenUnary"](
         module,
         Module["ExtAddPairwiseSVecI8x16ToI16x8"],
         value,
       );
     },
-    "extadd_pairwise_i8x16_u": function (value) {
+    "extadd_pairwise_i8x16_u"(value) {
       return Module["_BinaryenUnary"](
         module,
         Module["ExtAddPairwiseUVecI8x16ToI16x8"],
         value,
       );
     },
-    "narrow_i32x4_s": function (left, right) {
+    "narrow_i32x4_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["NarrowSVecI32x4ToVecI16x8"],
@@ -3858,7 +4040,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "narrow_i32x4_u": function (left, right) {
+    "narrow_i32x4_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["NarrowUVecI32x4ToVecI16x8"],
@@ -3866,28 +4048,28 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "extend_low_i8x16_s": function (value) {
+    "extend_low_i8x16_s"(value) {
       return Module["_BinaryenUnary"](
         module,
         Module["ExtendLowSVecI8x16ToVecI16x8"],
         value,
       );
     },
-    "extend_high_i8x16_s": function (value) {
+    "extend_high_i8x16_s"(value) {
       return Module["_BinaryenUnary"](
         module,
         Module["ExtendHighSVecI8x16ToVecI16x8"],
         value,
       );
     },
-    "extend_low_i8x16_u": function (value) {
+    "extend_low_i8x16_u"(value) {
       return Module["_BinaryenUnary"](
         module,
         Module["ExtendLowUVecI8x16ToVecI16x8"],
         value,
       );
     },
-    "extend_high_i8x16_u": function (value) {
+    "extend_high_i8x16_u"(value) {
       return Module["_BinaryenUnary"](
         module,
         Module["ExtendHighUVecI8x16ToVecI16x8"],
@@ -3897,10 +4079,10 @@ function wrapModule(module, self = {}) {
   };
 
   self["i32x4"] = {
-    "splat": function (value) {
+    "splat"(value) {
       return Module["_BinaryenUnary"](module, Module["SplatVecI32x4"], value);
     },
-    "extract_lane": function (vec, index) {
+    "extract_lane"(vec, index) {
       return Module["_BinaryenSIMDExtract"](
         module,
         Module["ExtractLaneVecI32x4"],
@@ -3908,7 +4090,7 @@ function wrapModule(module, self = {}) {
         index,
       );
     },
-    "replace_lane": function (vec, index, value) {
+    "replace_lane"(vec, index, value) {
       return Module["_BinaryenSIMDReplace"](
         module,
         Module["ReplaceLaneVecI32x4"],
@@ -3917,7 +4099,7 @@ function wrapModule(module, self = {}) {
         value,
       );
     },
-    "eq": function (left, right) {
+    "eq"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["EqVecI32x4"],
@@ -3925,7 +4107,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "ne": function (left, right) {
+    "ne"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["NeVecI32x4"],
@@ -3933,7 +4115,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "lt_s": function (left, right) {
+    "lt_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["LtSVecI32x4"],
@@ -3941,7 +4123,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "lt_u": function (left, right) {
+    "lt_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["LtUVecI32x4"],
@@ -3949,7 +4131,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "gt_s": function (left, right) {
+    "gt_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["GtSVecI32x4"],
@@ -3957,7 +4139,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "gt_u": function (left, right) {
+    "gt_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["GtUVecI32x4"],
@@ -3965,7 +4147,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "le_s": function (left, right) {
+    "le_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["LeSVecI32x4"],
@@ -3973,7 +4155,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "le_u": function (left, right) {
+    "le_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["LeUVecI32x4"],
@@ -3981,7 +4163,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "ge_s": function (left, right) {
+    "ge_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["GeSVecI32x4"],
@@ -3989,7 +4171,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "ge_u": function (left, right) {
+    "ge_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["GeUVecI32x4"],
@@ -3997,19 +4179,19 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "abs": function (value) {
+    "abs"(value) {
       return Module["_BinaryenUnary"](module, Module["AbsVecI32x4"], value);
     },
-    "neg": function (value) {
+    "neg"(value) {
       return Module["_BinaryenUnary"](module, Module["NegVecI32x4"], value);
     },
-    "all_true": function (value) {
+    "all_true"(value) {
       return Module["_BinaryenUnary"](module, Module["AllTrueVecI32x4"], value);
     },
-    "bitmask": function (value) {
+    "bitmask"(value) {
       return Module["_BinaryenUnary"](module, Module["BitmaskVecI32x4"], value);
     },
-    "shl": function (vec, shift) {
+    "shl"(vec, shift) {
       return Module["_BinaryenSIMDShift"](
         module,
         Module["ShlVecI32x4"],
@@ -4017,7 +4199,7 @@ function wrapModule(module, self = {}) {
         shift,
       );
     },
-    "shr_s": function (vec, shift) {
+    "shr_s"(vec, shift) {
       return Module["_BinaryenSIMDShift"](
         module,
         Module["ShrSVecI32x4"],
@@ -4025,7 +4207,7 @@ function wrapModule(module, self = {}) {
         shift,
       );
     },
-    "shr_u": function (vec, shift) {
+    "shr_u"(vec, shift) {
       return Module["_BinaryenSIMDShift"](
         module,
         Module["ShrUVecI32x4"],
@@ -4033,7 +4215,7 @@ function wrapModule(module, self = {}) {
         shift,
       );
     },
-    "add": function (left, right) {
+    "add"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["AddVecI32x4"],
@@ -4041,7 +4223,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "sub": function (left, right) {
+    "sub"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["SubVecI32x4"],
@@ -4049,7 +4231,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "mul": function (left, right) {
+    "mul"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["MulVecI32x4"],
@@ -4057,7 +4239,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "min_s": function (left, right) {
+    "min_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["MinSVecI32x4"],
@@ -4065,7 +4247,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "min_u": function (left, right) {
+    "min_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["MinUVecI32x4"],
@@ -4073,7 +4255,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "max_s": function (left, right) {
+    "max_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["MaxSVecI32x4"],
@@ -4081,7 +4263,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "max_u": function (left, right) {
+    "max_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["MaxUVecI32x4"],
@@ -4089,7 +4271,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "dot_i16x8_s": function (left, right) {
+    "dot_i16x8_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["DotSVecI16x8ToVecI32x4"],
@@ -4097,7 +4279,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "extmul_low_i16x8_s": function (left, right) {
+    "extmul_low_i16x8_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["ExtMulLowSVecI32x4"],
@@ -4105,7 +4287,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "extmul_high_i16x8_s": function (left, right) {
+    "extmul_high_i16x8_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["ExtMulHighSVecI32x4"],
@@ -4113,7 +4295,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "extmul_low_i16x8_u": function (left, right) {
+    "extmul_low_i16x8_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["ExtMulLowUVecI32x4"],
@@ -4121,7 +4303,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "extmul_high_i16x8_u": function (left, right) {
+    "extmul_high_i16x8_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["ExtMulHighUVecI32x4"],
@@ -4129,70 +4311,70 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "extadd_pairwise_i16x8_s": function (value) {
+    "extadd_pairwise_i16x8_s"(value) {
       return Module["_BinaryenUnary"](
         module,
         Module["ExtAddPairwiseSVecI16x8ToI32x4"],
         value,
       );
     },
-    "extadd_pairwise_i16x8_u": function (value) {
+    "extadd_pairwise_i16x8_u"(value) {
       return Module["_BinaryenUnary"](
         module,
         Module["ExtAddPairwiseUVecI16x8ToI32x4"],
         value,
       );
     },
-    "trunc_sat_f32x4_s": function (value) {
+    "trunc_sat_f32x4_s"(value) {
       return Module["_BinaryenUnary"](
         module,
         Module["TruncSatSVecF32x4ToVecI32x4"],
         value,
       );
     },
-    "trunc_sat_f32x4_u": function (value) {
+    "trunc_sat_f32x4_u"(value) {
       return Module["_BinaryenUnary"](
         module,
         Module["TruncSatUVecF32x4ToVecI32x4"],
         value,
       );
     },
-    "extend_low_i16x8_s": function (value) {
+    "extend_low_i16x8_s"(value) {
       return Module["_BinaryenUnary"](
         module,
         Module["ExtendLowSVecI16x8ToVecI32x4"],
         value,
       );
     },
-    "extend_high_i16x8_s": function (value) {
+    "extend_high_i16x8_s"(value) {
       return Module["_BinaryenUnary"](
         module,
         Module["ExtendHighSVecI16x8ToVecI32x4"],
         value,
       );
     },
-    "extend_low_i16x8_u": function (value) {
+    "extend_low_i16x8_u"(value) {
       return Module["_BinaryenUnary"](
         module,
         Module["ExtendLowUVecI16x8ToVecI32x4"],
         value,
       );
     },
-    "extend_high_i16x8_u": function (value) {
+    "extend_high_i16x8_u"(value) {
       return Module["_BinaryenUnary"](
         module,
         Module["ExtendHighUVecI16x8ToVecI32x4"],
         value,
       );
     },
-    "trunc_sat_f64x2_s_zero": function (value) {
+    "trunc_sat_f64x2_s_zero"(value) {
       return Module["_BinaryenUnary"](
         module,
         Module["TruncSatZeroSVecF64x2ToVecI32x4"],
         value,
       );
     },
-    "trunc_sat_f64x2_u_zero": function (value) {
+    "trunc_sat_f64x2_u_zero"(value) {
       return Module["_BinaryenUnary"](
         module,
         Module["TruncSatZeroUVecF64x2ToVecI32x4"],
@@ -4202,10 +4384,10 @@ function wrapModule(module, self = {}) {
   };
 
   self["i64x2"] = {
-    "splat": function (value) {
+    "splat"(value) {
       return Module["_BinaryenUnary"](module, Module["SplatVecI64x2"], value);
     },
-    "extract_lane": function (vec, index) {
+    "extract_lane"(vec, index) {
       return Module["_BinaryenSIMDExtract"](
         module,
         Module["ExtractLaneVecI64x2"],
@@ -4213,7 +4395,7 @@ function wrapModule(module, self = {}) {
         index,
       );
     },
-    "replace_lane": function (vec, index, value) {
+    "replace_lane"(vec, index, value) {
       return Module["_BinaryenSIMDReplace"](
         module,
         Module["ReplaceLaneVecI64x2"],
@@ -4222,7 +4404,7 @@ function wrapModule(module, self = {}) {
         value,
       );
     },
-    "eq": function (left, right) {
+    "eq"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["EqVecI64x2"],
@@ -4230,7 +4412,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "ne": function (left, right) {
+    "ne"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["NeVecI64x2"],
@@ -4238,7 +4420,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "lt_s": function (left, right) {
+    "lt_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["LtSVecI64x2"],
@@ -4246,7 +4428,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "gt_s": function (left, right) {
+    "gt_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["GtSVecI64x2"],
@@ -4254,7 +4436,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "le_s": function (left, right) {
+    "le_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["LeSVecI64x2"],
@@ -4262,7 +4444,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "ge_s": function (left, right) {
+    "ge_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["GeSVecI64x2"],
@@ -4270,19 +4452,19 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "abs": function (value) {
+    "abs"(value) {
       return Module["_BinaryenUnary"](module, Module["AbsVecI64x2"], value);
     },
-    "neg": function (value) {
+    "neg"(value) {
       return Module["_BinaryenUnary"](module, Module["NegVecI64x2"], value);
     },
-    "all_true": function (value) {
+    "all_true"(value) {
       return Module["_BinaryenUnary"](module, Module["AllTrueVecI64x2"], value);
     },
-    "bitmask": function (value) {
+    "bitmask"(value) {
       return Module["_BinaryenUnary"](module, Module["BitmaskVecI64x2"], value);
     },
-    "shl": function (vec, shift) {
+    "shl"(vec, shift) {
       return Module["_BinaryenSIMDShift"](
         module,
         Module["ShlVecI64x2"],
@@ -4290,7 +4472,7 @@ function wrapModule(module, self = {}) {
         shift,
       );
     },
-    "shr_s": function (vec, shift) {
+    "shr_s"(vec, shift) {
       return Module["_BinaryenSIMDShift"](
         module,
         Module["ShrSVecI64x2"],
@@ -4298,7 +4480,7 @@ function wrapModule(module, self = {}) {
         shift,
       );
     },
-    "shr_u": function (vec, shift) {
+    "shr_u"(vec, shift) {
       return Module["_BinaryenSIMDShift"](
         module,
         Module["ShrUVecI64x2"],
@@ -4306,7 +4488,7 @@ function wrapModule(module, self = {}) {
         shift,
       );
     },
-    "add": function (left, right) {
+    "add"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["AddVecI64x2"],
@@ -4314,7 +4496,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "sub": function (left, right) {
+    "sub"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["SubVecI64x2"],
@@ -4322,7 +4504,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "mul": function (left, right) {
+    "mul"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["MulVecI64x2"],
@@ -4330,7 +4512,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "extmul_low_i32x4_s": function (left, right) {
+    "extmul_low_i32x4_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["ExtMulLowSVecI64x2"],
@@ -4338,7 +4520,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "extmul_high_i32x4_s": function (left, right) {
+    "extmul_high_i32x4_s"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["ExtMulHighSVecI64x2"],
@@ -4346,7 +4528,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "extmul_low_i32x4_u": function (left, right) {
+    "extmul_low_i32x4_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["ExtMulLowUVecI64x2"],
@@ -4354,7 +4536,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "extmul_high_i32x4_u": function (left, right) {
+    "extmul_high_i32x4_u"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["ExtMulHighUVecI64x2"],
@@ -4362,28 +4544,28 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "extend_low_i32x4_s": function (value) {
+    "extend_low_i32x4_s"(value) {
       return Module["_BinaryenUnary"](
         module,
         Module["ExtendLowSVecI32x4ToVecI64x2"],
         value,
       );
     },
-    "extend_high_i32x4_s": function (value) {
+    "extend_high_i32x4_s"(value) {
       return Module["_BinaryenUnary"](
         module,
         Module["ExtendHighSVecI32x4ToVecI64x2"],
         value,
       );
     },
-    "extend_low_i32x4_u": function (value) {
+    "extend_low_i32x4_u"(value) {
       return Module["_BinaryenUnary"](
         module,
         Module["ExtendLowUVecI32x4ToVecI64x2"],
         value,
       );
     },
-    "extend_high_i32x4_u": function (value) {
+    "extend_high_i32x4_u"(value) {
       return Module["_BinaryenUnary"](
         module,
         Module["ExtendHighUVecI32x4ToVecI64x2"],
@@ -4393,10 +4575,10 @@ function wrapModule(module, self = {}) {
   };
 
   self["f32x4"] = {
-    "splat": function (value) {
+    "splat"(value) {
       return Module["_BinaryenUnary"](module, Module["SplatVecF32x4"], value);
     },
-    "extract_lane": function (vec, index) {
+    "extract_lane"(vec, index) {
       return Module["_BinaryenSIMDExtract"](
         module,
         Module["ExtractLaneVecF32x4"],
@@ -4404,7 +4586,7 @@ function wrapModule(module, self = {}) {
         index,
       );
     },
-    "replace_lane": function (vec, index, value) {
+    "replace_lane"(vec, index, value) {
       return Module["_BinaryenSIMDReplace"](
         module,
         Module["ReplaceLaneVecF32x4"],
@@ -4413,7 +4595,7 @@ function wrapModule(module, self = {}) {
         value,
       );
     },
-    "eq": function (left, right) {
+    "eq"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["EqVecF32x4"],
@@ -4421,7 +4603,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "ne": function (left, right) {
+    "ne"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["NeVecF32x4"],
@@ -4429,7 +4611,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "lt": function (left, right) {
+    "lt"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["LtVecF32x4"],
@@ -4437,7 +4619,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "gt": function (left, right) {
+    "gt"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["GtVecF32x4"],
@@ -4445,7 +4627,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "le": function (left, right) {
+    "le"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["LeVecF32x4"],
@@ -4453,7 +4635,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "ge": function (left, right) {
+    "ge"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["GeVecF32x4"],
@@ -4461,16 +4643,16 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "abs": function (value) {
+    "abs"(value) {
       return Module["_BinaryenUnary"](module, Module["AbsVecF32x4"], value);
     },
-    "neg": function (value) {
+    "neg"(value) {
       return Module["_BinaryenUnary"](module, Module["NegVecF32x4"], value);
     },
-    "sqrt": function (value) {
+    "sqrt"(value) {
       return Module["_BinaryenUnary"](module, Module["SqrtVecF32x4"], value);
     },
-    "add": function (left, right) {
+    "add"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["AddVecF32x4"],
@@ -4478,7 +4660,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "sub": function (left, right) {
+    "sub"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["SubVecF32x4"],
@@ -4486,7 +4668,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "mul": function (left, right) {
+    "mul"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["MulVecF32x4"],
@@ -4494,7 +4676,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "div": function (left, right) {
+    "div"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["DivVecF32x4"],
@@ -4502,7 +4684,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "min": function (left, right) {
+    "min"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["MinVecF32x4"],
@@ -4510,7 +4692,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "max": function (left, right) {
+    "max"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["MaxVecF32x4"],
@@ -4518,7 +4700,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "pmin": function (left, right) {
+    "pmin"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["PMinVecF32x4"],
@@ -4526,7 +4708,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "pmax": function (left, right) {
+    "pmax"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["PMaxVecF32x4"],
@@ -4534,33 +4716,33 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "ceil": function (value) {
+    "ceil"(value) {
       return Module["_BinaryenUnary"](module, Module["CeilVecF32x4"], value);
     },
-    "floor": function (value) {
+    "floor"(value) {
       return Module["_BinaryenUnary"](module, Module["FloorVecF32x4"], value);
     },
-    "trunc": function (value) {
+    "trunc"(value) {
       return Module["_BinaryenUnary"](module, Module["TruncVecF32x4"], value);
     },
-    "nearest": function (value) {
+    "nearest"(value) {
       return Module["_BinaryenUnary"](module, Module["NearestVecF32x4"], value);
     },
-    "convert_i32x4_s": function (value) {
+    "convert_i32x4_s"(value) {
       return Module["_BinaryenUnary"](
         module,
         Module["ConvertSVecI32x4ToVecF32x4"],
         value,
       );
     },
-    "convert_i32x4_u": function (value) {
+    "convert_i32x4_u"(value) {
       return Module["_BinaryenUnary"](
         module,
         Module["ConvertUVecI32x4ToVecF32x4"],
         value,
       );
     },
-    "demote_f64x2_zero": function (value) {
+    "demote_f64x2_zero"(value) {
       return Module["_BinaryenUnary"](
         module,
         Module["DemoteZeroVecF64x2ToVecF32x4"],
@@ -4570,10 +4752,10 @@ function wrapModule(module, self = {}) {
   };
 
   self["f64x2"] = {
-    "splat": function (value) {
+    "splat"(value) {
       return Module["_BinaryenUnary"](module, Module["SplatVecF64x2"], value);
     },
-    "extract_lane": function (vec, index) {
+    "extract_lane"(vec, index) {
       return Module["_BinaryenSIMDExtract"](
         module,
         Module["ExtractLaneVecF64x2"],
@@ -4581,7 +4763,7 @@ function wrapModule(module, self = {}) {
         index,
       );
     },
-    "replace_lane": function (vec, index, value) {
+    "replace_lane"(vec, index, value) {
       return Module["_BinaryenSIMDReplace"](
         module,
         Module["ReplaceLaneVecF64x2"],
@@ -4590,7 +4772,7 @@ function wrapModule(module, self = {}) {
         value,
       );
     },
-    "eq": function (left, right) {
+    "eq"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["EqVecF64x2"],
@@ -4598,7 +4780,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "ne": function (left, right) {
+    "ne"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["NeVecF64x2"],
@@ -4606,7 +4788,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "lt": function (left, right) {
+    "lt"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["LtVecF64x2"],
@@ -4614,7 +4796,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "gt": function (left, right) {
+    "gt"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["GtVecF64x2"],
@@ -4622,7 +4804,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "le": function (left, right) {
+    "le"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["LeVecF64x2"],
@@ -4630,7 +4812,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "ge": function (left, right) {
+    "ge"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["GeVecF64x2"],
@@ -4638,16 +4820,16 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "abs": function (value) {
+    "abs"(value) {
       return Module["_BinaryenUnary"](module, Module["AbsVecF64x2"], value);
     },
-    "neg": function (value) {
+    "neg"(value) {
       return Module["_BinaryenUnary"](module, Module["NegVecF64x2"], value);
     },
-    "sqrt": function (value) {
+    "sqrt"(value) {
       return Module["_BinaryenUnary"](module, Module["SqrtVecF64x2"], value);
     },
-    "add": function (left, right) {
+    "add"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["AddVecF64x2"],
@@ -4655,7 +4837,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "sub": function (left, right) {
+    "sub"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["SubVecF64x2"],
@@ -4663,7 +4845,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "mul": function (left, right) {
+    "mul"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["MulVecF64x2"],
@@ -4671,7 +4853,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "div": function (left, right) {
+    "div"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["DivVecF64x2"],
@@ -4679,7 +4861,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "min": function (left, right) {
+    "min"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["MinVecF64x2"],
@@ -4687,7 +4869,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "max": function (left, right) {
+    "max"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["MaxVecF64x2"],
@@ -4695,7 +4877,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "pmin": function (left, right) {
+    "pmin"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["PMinVecF64x2"],
@@ -4703,7 +4885,7 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "pmax": function (left, right) {
+    "pmax"(left, right) {
       return Module["_BinaryenBinary"](
         module,
         Module["PMaxVecF64x2"],
@@ -4711,33 +4893,33 @@ function wrapModule(module, self = {}) {
         right,
       );
     },
-    "ceil": function (value) {
+    "ceil"(value) {
       return Module["_BinaryenUnary"](module, Module["CeilVecF64x2"], value);
     },
-    "floor": function (value) {
+    "floor"(value) {
       return Module["_BinaryenUnary"](module, Module["FloorVecF64x2"], value);
     },
-    "trunc": function (value) {
+    "trunc"(value) {
       return Module["_BinaryenUnary"](module, Module["TruncVecF64x2"], value);
     },
-    "nearest": function (value) {
+    "nearest"(value) {
       return Module["_BinaryenUnary"](module, Module["NearestVecF64x2"], value);
     },
-    "convert_low_i32x4_s": function (value) {
+    "convert_low_i32x4_s"(value) {
       return Module["_BinaryenUnary"](
         module,
         Module["ConvertLowSVecI32x4ToVecF64x2"],
         value,
       );
     },
-    "convert_low_i32x4_u": function (value) {
+    "convert_low_i32x4_u"(value) {
       return Module["_BinaryenUnary"](
         module,
         Module["ConvertLowUVecI32x4ToVecF64x2"],
         value,
       );
     },
-    "promote_low_f32x4": function (value) {
+    "promote_low_f32x4"(value) {
       return Module["_BinaryenUnary"](
         module,
         Module["PromoteLowVecF32x4ToVecF64x2"],
@@ -4747,66 +4929,78 @@ function wrapModule(module, self = {}) {
   };
 
   self["funcref"] = {
-    "pop": function () {
+    "pop"() {
       return Module["_BinaryenPop"](module, Module["funcref"]);
     },
   };
 
   self["externref"] = {
-    "pop": function () {
+    "pop"() {
       return Module["_BinaryenPop"](module, Module["externref"]);
     },
   };
 
   self["anyref"] = {
-    "pop": function () {
+    "pop"() {
       return Module["_BinaryenPop"](module, Module["anyref"]);
     },
   };
 
   self["eqref"] = {
-    "pop": function () {
+    "pop"() {
       return Module["_BinaryenPop"](module, Module["eqref"]);
     },
   };
 
   self["i31ref"] = {
-    "pop": function () {
+    "pop"() {
       return Module["_BinaryenPop"](module, Module["i31ref"]);
     },
   };
 
   self["structref"] = {
-    "pop": function () {
+    "pop"() {
       return Module["_BinaryenPop"](module, Module["structref"]);
     },
   };
 
+  self["arrayref"] = {
+    "pop"() {
+      return Module["_BinaryenPop"](module, Module["arrayref"]);
+    },
+  };
+
+  self["stringref"] = {
+    "pop"() {
+      return Module["_BinaryenPop"](module, Module["stringref"]);
+    },
+  };
+
   self["ref"] = {
-    "null": function (type) {
+    "null"(type) {
       return Module["_BinaryenRefNull"](module, type);
     },
-    "is_null": function (value) {
+    "is_null"(value) {
       return Module["_BinaryenRefIsNull"](module, value);
     },
-    "as_non_null": function (value) {
+    "as_non_null"(value) {
       return Module["_BinaryenRefAs"](module, Module["RefAsNonNull"], value);
     },
-    "func": function (func, type) {
+    "func"(func, type) {
       return preserveStack(() =>
         Module["_BinaryenRefFunc"](module, strToStack(func), type),
       );
     },
-    "i31": function (value) {
+    "i31"(value) {
       return Module["_BinaryenRefI31"](module, value);
     },
-    "eq": function (left, right) {
+    "eq"(left, right) {
       return Module["_BinaryenRefEq"](module, left, right);
     },
-    "test": function (value, castType) {
+    "test"(value, castType) {
       return Module["_BinaryenRefTest"](module, value, castType);
     },
-    "cast": function (value, castType) {
+    "cast"(value, castType) {
       return Module["_BinaryenRefCast"](module, value, castType);
     },
   };
@@ -4828,7 +5022,7 @@ function wrapModule(module, self = {}) {
   };
 
   self["atomic"] = {
-    "fence": function () {
+    "fence"() {
       return Module["_BinaryenAtomicFence"](module);
     },
   };
@@ -4864,7 +5058,7 @@ function wrapModule(module, self = {}) {
   };
 
   self["tuple"] = {
-    "make": function (elements) {
+    "make"(elements) {
       return preserveStack(() =>
         Module["_BinaryenTupleMake"](
           module,
@@ -4873,16 +5067,16 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "extract": function (tuple, index) {
+    "extract"(tuple, index) {
       return Module["_BinaryenTupleExtract"](module, tuple, index);
     },
   };
 
   self["i31"] = {
-    "get_s": function (i31) {
+    "get_s"(i31) {
       return Module["_BinaryenI31Get"](module, i31, 1);
     },
-    "get_u": function (i31) {
+    "get_u"(i31) {
       return Module["_BinaryenI31Get"](module, i31, 0);
     },
   };
@@ -4912,13 +5106,13 @@ function wrapModule(module, self = {}) {
   };
 
   self["any"] = {
-    "convert_extern": function () {
+    "convert_extern"() {
       return Module["_BinaryenRefAsAnyConvertExtern"]();
     },
   };
 
   self["extern"] = {
-    "convert_any": function () {
+    "convert_any"() {
       return Module["_BinaryenRefAsExternConvertAny"]();
     },
   };
@@ -4972,7 +5166,7 @@ function wrapModule(module, self = {}) {
   };
 
   self["struct"] = {
-    "new": function (operands, type) {
+    "new"(operands, type) {
       return preserveStack(() =>
         Module["_BinaryenStructNew"](
           module,
@@ -4982,30 +5176,27 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "new_default": function (type) {
+    "new_default"(type) {
       // Passing in null for |operands| (and 0 for |numOperands|) implies this is
       // struct.new_default.
       return Module["_BinaryenStructNew"](module, 0, 0, type);
     },
-    "get": function (index, ref, type, isSigned) {
+    "get"(index, ref, type, isSigned) {
       return Module["_BinaryenStructGet"](module, index, ref, type, isSigned);
     },
-    "set": function (index, ref, value) {
+    "set"(index, ref, value) {
       return Module["_BinaryenStructSet"](module, index, ref, value);
     },
   };
 
   self["array"] = {
-    "pop": function () {
-      return Module["_BinaryenPop"](module, Module["arrayref"]);
-    },
-    "new": function (type, size, init) {
+    "new"(type, size, init) {
       return Module["_BinaryenArrayNew"](module, type, size, init);
     },
-    "new_default": function (type, size) {
+    "new_default"(type, size) {
       return Module["_BinaryenArrayNew"](module, type, size, 0);
     },
-    "new_fixed": function (type, values) {
+    "new_fixed"(type, values) {
       return preserveStack(() =>
         Module["_BinaryenArrayNewFixed"](
           module,
@@ -5015,7 +5206,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "new_data": function (type, name, offset, size) {
+    "new_data"(type, name, offset, size) {
       return preserveStack(() =>
         Module["_BinaryenArrayNewData"](
           module,
@@ -5026,7 +5217,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "new_elem": function (type, name, offset, size) {
+    "new_elem"(type, name, offset, size) {
       return preserveStack(() =>
         Module["_BinaryenArrayNewElem"](
           module,
@@ -5037,19 +5228,19 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "get": function (ref, index, type, isSigned) {
+    "get"(ref, index, type, isSigned) {
       return Module["_BinaryenArrayGet"](module, ref, index, type, isSigned);
     },
-    "set": function (ref, index, value) {
+    "set"(ref, index, value) {
       return Module["_BinaryenArraySet"](module, ref, index, value);
     },
-    "len": function (ref) {
+    "len"(ref) {
       return Module["_BinaryenArrayLen"](module, ref);
     },
-    "fill": function (ref, index, value, size) {
+    "fill"(ref, index, value, size) {
       return Module["_BinaryenArrayFill"](module, ref, index, value, size);
     },
-    "copy": function (destRef, destIndex, srcRef, srcIndex, length) {
+    "copy"(destRef, destIndex, srcRef, srcIndex, length) {
       return Module["_BinaryenArrayCopy"](
         module,
         destRef,
@@ -5059,7 +5250,7 @@ function wrapModule(module, self = {}) {
         length,
       );
     },
-    "init_data": function (name, ref, index, offset, size) {
+    "init_data"(name, ref, index, offset, size) {
       return preserveStack(() =>
         Module["_BinaryenArrayInitData"](
           module,
@@ -5071,7 +5262,7 @@ function wrapModule(module, self = {}) {
         ),
       );
     },
-    "init_elem": function (name, ref, index, offset, size) {
+    "init_elem"(name, ref, index, offset, size) {
       return preserveStack(() =>
         Module["_BinaryenArrayInitElem"](
           module,
@@ -5085,35 +5276,7 @@ function wrapModule(module, self = {}) {
     },
   };
 
-  self["string"] = {
-    "pop": function () {
-      return Module["_BinaryenPop"](module, Module["stringref"]);
-    },
-    "const": function (value) {
-      return preserveStack(() => {
-        return Module["_BinaryenStringConst"](module, strToStack(value));
-      });
-    },
-    "concat": function (left, right) {
-      return Module["_BinaryenStringConcat"](module, left, right);
-    },
-    "cmp": function (left, right) {
-      return Module["_BinaryenStringEq"](
-        module,
-        Module["StringEqCompare"],
-        left,
-        right,
-      );
-    },
-    "eq": function (left, right) {
-      return Module["_BinaryenStringEq"](
-        module,
-        Module["StringEqEqual"],
-        left,
-        right,
-      );
-    },
-  };
+  // TODO: string.*
 
   // 'Module' operations
   self["addFunction"] = function (name, params, results, varTypes, body) {
@@ -5441,17 +5604,22 @@ function wrapModule(module, self = {}) {
   self["getMemoryInfo"] = function (name) {
     return preserveStack(() => {
       var memoryInfo = {
-        module: UTF8ToString(
+        "module": UTF8ToString(
           Module["_BinaryenMemoryImportGetModule"](module, strToStack(name)),
         ),
-        base: UTF8ToString(
+        "base": UTF8ToString(
           Module["_BinaryenMemoryImportGetBase"](module, strToStack(name)),
         ),
-        initial: Module["_BinaryenMemoryGetInitial"](module, strToStack(name)),
-        shared: Boolean(
+        "initial": Module["_BinaryenMemoryGetInitial"](
+          module,
+          strToStack(name),
+        ),
+        "shared": Boolean(
           Module["_BinaryenMemoryIsShared"](module, strToStack(name)),
         ),
-        is64: Boolean(Module["_BinaryenMemoryIs64"](module, strToStack(name))),
+        "is64": Boolean(
+          Module["_BinaryenMemoryIs64"](module, strToStack(name)),
+        ),
       };
       if (Module["_BinaryenMemoryHasMax"](module, strToStack(name))) {
         memoryInfo["max"] = Module["_BinaryenMemoryGetMax"](
@@ -5478,8 +5646,8 @@ function wrapModule(module, self = {}) {
         );
       }
       return {
-        offset: offset,
-        data: (function () {
+        "offset": offset,
+        "data": (function () {
           const size = Module["_BinaryenGetMemorySegmentByteLength"](
             module,
             strToStack(name),
@@ -5495,7 +5663,7 @@ function wrapModule(module, self = {}) {
           _free(ptr);
           return res.buffer;
         })(),
-        passive: passive,
+        "passive": passive,
       };
     });
   };
@@ -5649,7 +5817,7 @@ function wrapModule(module, self = {}) {
         buffer.set(HEAPU8.subarray(binaryPtr, binaryPtr + binaryBytes));
         return typeof sourceMapUrl === "undefined"
           ? buffer
-          : { binary: buffer, sourceMap: UTF8ToString(sourceMapPtr) };
+          : { "binary": buffer, "sourceMap": UTF8ToString(sourceMapPtr) };
       } finally {
         _free(binaryPtr);
         if (sourceMapPtr) _free(sourceMapPtr);
@@ -5927,8 +6095,8 @@ Module["getExpressionInfo"] = function (expr) {
           break;
         case Module["i64"]:
           info.value = {
-            low: Module["_BinaryenConstGetValueI64Low"](expr),
-            high: Module["_BinaryenConstGetValueI64High"](expr),
+            "low": Module["_BinaryenConstGetValueI64Low"](expr),
+            "high": Module["_BinaryenConstGetValueI64High"](expr),
           };
           break;
         case Module["f32"]:
@@ -6005,30 +6173,30 @@ Module["expandType"] = function (ty) {
 // Obtains information about a 'Function'
 Module["getFunctionInfo"] = function (func) {
   return {
-    name: UTF8ToString(Module["_BinaryenFunctionGetName"](func)),
-    module: UTF8ToString(Module["_BinaryenFunctionImportGetModule"](func)),
-    base: UTF8ToString(Module["_BinaryenFunctionImportGetBase"](func)),
-    type: Module["_BinaryenFunctionGetType"](func),
-    params: Module["_BinaryenFunctionGetParams"](func),
-    results: Module["_BinaryenFunctionGetResults"](func),
-    vars: getAllNested(
+    "name": UTF8ToString(Module["_BinaryenFunctionGetName"](func)),
+    "module": UTF8ToString(Module["_BinaryenFunctionImportGetModule"](func)),
+    "base": UTF8ToString(Module["_BinaryenFunctionImportGetBase"](func)),
+    "type": Module["_BinaryenFunctionGetType"](func),
+    "params": Module["_BinaryenFunctionGetParams"](func),
+    "results": Module["_BinaryenFunctionGetResults"](func),
+    "vars": getAllNested(
       func,
       Module["_BinaryenFunctionGetNumVars"],
       Module["_BinaryenFunctionGetVar"],
     ),
-    body: Module["_BinaryenFunctionGetBody"](func),
+    "body": Module["_BinaryenFunctionGetBody"](func),
   };
 };
 
 // Obtains information about a 'Global'
 Module["getGlobalInfo"] = function (global) {
   return {
-    name: UTF8ToString(Module["_BinaryenGlobalGetName"](global)),
-    module: UTF8ToString(Module["_BinaryenGlobalImportGetModule"](global)),
-    base: UTF8ToString(Module["_BinaryenGlobalImportGetBase"](global)),
-    type: Module["_BinaryenGlobalGetType"](global),
-    mutable: Boolean(Module["_BinaryenGlobalIsMutable"](global)),
-    init: Module["_BinaryenGlobalGetInitExpr"](global),
+    "name": UTF8ToString(Module["_BinaryenGlobalGetName"](global)),
+    "module": UTF8ToString(Module["_BinaryenGlobalImportGetModule"](global)),
+    "base": UTF8ToString(Module["_BinaryenGlobalImportGetBase"](global)),
+    "type": Module["_BinaryenGlobalGetType"](global),
+    "mutable": Boolean(Module["_BinaryenGlobalIsMutable"](global)),
+    "init": Module["_BinaryenGlobalGetInitExpr"](global),
   };
 };
 
@@ -6036,10 +6204,10 @@ Module["getGlobalInfo"] = function (global) {
 Module["getTableInfo"] = function (table) {
   var hasMax = Boolean(Module["_BinaryenTableHasMax"](table));
   var tableInfo = {
-    name: UTF8ToString(Module["_BinaryenTableGetName"](table)),
-    module: UTF8ToString(Module["_BinaryenTableImportGetModule"](table)),
-    base: UTF8ToString(Module["_BinaryenTableImportGetBase"](table)),
-    initial: Module["_BinaryenTableGetInitial"](table),
+    "name": UTF8ToString(Module["_BinaryenTableGetName"](table)),
+    "module": UTF8ToString(Module["_BinaryenTableImportGetModule"](table)),
+    "base": UTF8ToString(Module["_BinaryenTableImportGetBase"](table)),
+    "initial": Module["_BinaryenTableGetInitial"](table),
   };
 
   if (hasMax) {
@@ -6058,30 +6226,30 @@ Module["getElementSegmentInfo"] = function (segment) {
   }
 
   return {
-    name: UTF8ToString(Module["_BinaryenElementSegmentGetName"](segment)),
-    table: UTF8ToString(Module["_BinaryenElementSegmentGetTable"](segment)),
-    offset: Module["_BinaryenElementSegmentGetOffset"](segment),
-    data: names,
+    "name": UTF8ToString(Module["_BinaryenElementSegmentGetName"](segment)),
+    "table": UTF8ToString(Module["_BinaryenElementSegmentGetTable"](segment)),
+    "offset": Module["_BinaryenElementSegmentGetOffset"](segment),
+    "data": names,
   };
 };
 
 // Obtains information about a 'Tag'
 Module["getTagInfo"] = function (tag) {
   return {
-    name: UTF8ToString(Module["_BinaryenTagGetName"](tag)),
-    module: UTF8ToString(Module["_BinaryenTagImportGetModule"](tag)),
-    base: UTF8ToString(Module["_BinaryenTagImportGetBase"](tag)),
-    params: Module["_BinaryenTagGetParams"](tag),
-    results: Module["_BinaryenTagGetResults"](tag),
+    "name": UTF8ToString(Module["_BinaryenTagGetName"](tag)),
+    "module": UTF8ToString(Module["_BinaryenTagImportGetModule"](tag)),
+    "base": UTF8ToString(Module["_BinaryenTagImportGetBase"](tag)),
+    "params": Module["_BinaryenTagGetParams"](tag),
+    "results": Module["_BinaryenTagGetResults"](tag),
   };
 };
 
 // Obtains information about an 'Export'
 Module["getExportInfo"] = function (export_) {
   return {
-    kind: Module["_BinaryenExportGetKind"](export_),
-    name: UTF8ToString(Module["_BinaryenExportGetName"](export_)),
-    value: UTF8ToString(Module["_BinaryenExportGetValue"](export_)),
+    "kind": Module["_BinaryenExportGetKind"](export_),
+    "name": UTF8ToString(Module["_BinaryenExportGetName"](export_)),
+    "value": UTF8ToString(Module["_BinaryenExportGetValue"](export_)),
   };
 };
 
@@ -6100,6 +6268,27 @@ Module["emitText"] = function (expr) {
   return ret;
 };
 
+// Calls a function, wrapping it in error handling code so that if it hits a
+// fatal error, we throw a JS exception (which JS can handle) rather than
+// abort the entire process (which would not be a friendly behavior for a
+// library like binaryen.js).
+function handleFatalError(func) {
+  try {
+    return func();
+  } catch (e) {
+    // C++ exceptions are thrown as pointers (numbers).
+    if (typeof e === "number") {
+      // Fatal errors begin with that prefix. Strip it out, and the newline.
+      var [_, message] = getExceptionMessage(e);
+      if (message?.startsWith("Fatal: ")) {
+        throw new Error(message.substr(7).trim());
+      }
+    }
+    // Rethrow anything else.
+    throw e;
+  }
+}
+
 // Parses a binary to a module
 
 // If building with Emscripten ASSERTIONS, there is a property added to
@@ -6110,7 +6299,9 @@ Object.defineProperty(Module, "readBinary", { writable: true });
 Module["readBinary"] = function (data) {
   const buffer = _malloc(data.length);
   HEAP8.set(data, buffer);
-  const ptr = Module["_BinaryenModuleRead"](buffer, data.length);
+  const ptr = handleFatalError(() =>
+    Module["_BinaryenModuleRead"](buffer, data.length),
+  );
   _free(buffer);
   return wrapModule(ptr);
 };
@@ -6119,7 +6310,7 @@ Module["readBinary"] = function (data) {
 Module["parseText"] = function (text) {
   const buffer = _malloc(text.length + 1);
   stringToAscii(text, buffer);
-  const ptr = Module["_BinaryenModuleParse"](buffer);
+  const ptr = handleFatalError(() => Module["_BinaryenModuleParse"](buffer));
   _free(buffer);
   return wrapModule(ptr);
 };
@@ -6377,10 +6568,12 @@ function deriveWrapperInstanceMembers(prototype, staticMembers) {
           memberName.substring(index + 1);
         const setterIfAny = staticMembers["set" + memberName.substring(index)];
         Object.defineProperty(prototype, propertyName, {
-          /** @this {Expression} */ "get": function () {
+          /** @this {Expression} */
+          get() {
             return member(this[thisPtr]);
           },
-          /** @this {Expression} */ "set": function (value) {
+          /** @this {Expression} */
+          set(value) {
             if (setterIfAny) setterIfAny(this[thisPtr], value);
             else throw Error("property '" + propertyName + "' has no setter");
           },
@@ -6425,26 +6618,26 @@ Expression.prototype["valueOf"] = function () {
 Module["Expression"] = Expression;
 
 Module["Block"] = makeExpressionWrapper(Module["_BinaryenBlockId"](), {
-  "getName": function (expr) {
+  "getName"(expr) {
     const name = Module["_BinaryenBlockGetName"](expr);
     return name ? UTF8ToString(name) : null;
   },
-  "setName": function (expr, name) {
+  "setName"(expr, name) {
     preserveStack(() => {
       Module["_BinaryenBlockSetName"](expr, strToStack(name));
     });
   },
-  "getNumChildren": function (expr) {
+  "getNumChildren"(expr) {
     return Module["_BinaryenBlockGetNumChildren"](expr);
   },
-  "getChildren": function (expr) {
+  "getChildren"(expr) {
     return getAllNested(
       expr,
       Module["_BinaryenBlockGetNumChildren"],
       Module["_BinaryenBlockGetChildAt"],
     );
   },
-  "setChildren": function (expr, children) {
+  "setChildren"(expr, children) {
     setAllNested(
       expr,
       children,
@@ -6454,98 +6647,98 @@ Module["Block"] = makeExpressionWrapper(Module["_BinaryenBlockId"](), {
       Module["_BinaryenBlockRemoveChildAt"],
     );
   },
-  "getChildAt": function (expr, index) {
+  "getChildAt"(expr, index) {
     return Module["_BinaryenBlockGetChildAt"](expr, index);
   },
-  "setChildAt": function (expr, index, childExpr) {
+  "setChildAt"(expr, index, childExpr) {
     Module["_BinaryenBlockSetChildAt"](expr, index, childExpr);
   },
-  "appendChild": function (expr, childExpr) {
+  "appendChild"(expr, childExpr) {
     return Module["_BinaryenBlockAppendChild"](expr, childExpr);
   },
-  "insertChildAt": function (expr, index, childExpr) {
+  "insertChildAt"(expr, index, childExpr) {
     Module["_BinaryenBlockInsertChildAt"](expr, index, childExpr);
   },
-  "removeChildAt": function (expr, index) {
+  "removeChildAt"(expr, index) {
     return Module["_BinaryenBlockRemoveChildAt"](expr, index);
   },
 });
 
 Module["If"] = makeExpressionWrapper(Module["_BinaryenIfId"](), {
-  "getCondition": function (expr) {
+  "getCondition"(expr) {
     return Module["_BinaryenIfGetCondition"](expr);
   },
-  "setCondition": function (expr, condExpr) {
+  "setCondition"(expr, condExpr) {
     Module["_BinaryenIfSetCondition"](expr, condExpr);
   },
-  "getIfTrue": function (expr) {
+  "getIfTrue"(expr) {
     return Module["_BinaryenIfGetIfTrue"](expr);
   },
-  "setIfTrue": function (expr, ifTrueExpr) {
+  "setIfTrue"(expr, ifTrueExpr) {
     Module["_BinaryenIfSetIfTrue"](expr, ifTrueExpr);
   },
-  "getIfFalse": function (expr) {
+  "getIfFalse"(expr) {
     return Module["_BinaryenIfGetIfFalse"](expr);
   },
-  "setIfFalse": function (expr, ifFalseExpr) {
+  "setIfFalse"(expr, ifFalseExpr) {
     Module["_BinaryenIfSetIfFalse"](expr, ifFalseExpr);
   },
 });
 
 Module["Loop"] = makeExpressionWrapper(Module["_BinaryenLoopId"](), {
-  "getName": function (expr) {
+  "getName"(expr) {
     const name = Module["_BinaryenLoopGetName"](expr);
     return name ? UTF8ToString(name) : null;
   },
-  "setName": function (expr, name) {
+  "setName"(expr, name) {
     preserveStack(() => {
       Module["_BinaryenLoopSetName"](expr, strToStack(name));
     });
   },
-  "getBody": function (expr) {
+  "getBody"(expr) {
     return Module["_BinaryenLoopGetBody"](expr);
   },
-  "setBody": function (expr, bodyExpr) {
+  "setBody"(expr, bodyExpr) {
     Module["_BinaryenLoopSetBody"](expr, bodyExpr);
   },
 });
 
 Module["Break"] = makeExpressionWrapper(Module["_BinaryenBreakId"](), {
-  "getName": function (expr) {
+  "getName"(expr) {
     const name = Module["_BinaryenBreakGetName"](expr);
     return name ? UTF8ToString(name) : null;
   },
-  "setName": function (expr, name) {
+  "setName"(expr, name) {
     preserveStack(() => {
       Module["_BinaryenBreakSetName"](expr, strToStack(name));
     });
   },
-  "getCondition": function (expr) {
+  "getCondition"(expr) {
     return Module["_BinaryenBreakGetCondition"](expr);
   },
-  "setCondition": function (expr, condExpr) {
+  "setCondition"(expr, condExpr) {
     Module["_BinaryenBreakSetCondition"](expr, condExpr);
   },
-  "getValue": function (expr) {
+  "getValue"(expr) {
     return Module["_BinaryenBreakGetValue"](expr);
   },
-  "setValue": function (expr, valueExpr) {
+  "setValue"(expr, valueExpr) {
     Module["_BinaryenBreakSetValue"](expr, valueExpr);
   },
 });
 
 Module["Switch"] = makeExpressionWrapper(Module["_BinaryenSwitchId"](), {
-  "getNumNames": function (expr) {
+  "getNumNames"(expr) {
     return Module["_BinaryenSwitchGetNumNames"](expr);
   },
-  "getNames": function (expr) {
+  "getNames"(expr) {
     return getAllNested(
       expr,
       Module["_BinaryenSwitchGetNumNames"],
       Module["_BinaryenSwitchGetNameAt"],
     ).map((p) => UTF8ToString(p));
   },
-  "setNames": function (expr, names) {
+  "setNames"(expr, names) {
     preserveStack(() => {
       setAllNested(
         expr,
@@ -6557,70 +6750,70 @@ Module["Switch"] = makeExpressionWrapper(Module["_BinaryenSwitchId"](), {
       );
     });
   },
-  "getDefaultName": function (expr) {
+  "getDefaultName"(expr) {
     const name = Module["_BinaryenSwitchGetDefaultName"](expr);
     return name ? UTF8ToString(name) : null;
   },
-  "setDefaultName": function (expr, defaultName) {
+  "setDefaultName"(expr, defaultName) {
     preserveStack(() => {
       Module["_BinaryenSwitchSetDefaultName"](expr, strToStack(defaultName));
     });
   },
-  "getCondition": function (expr) {
+  "getCondition"(expr) {
     return Module["_BinaryenSwitchGetCondition"](expr);
   },
-  "setCondition": function (expr, condExpr) {
+  "setCondition"(expr, condExpr) {
     Module["_BinaryenSwitchSetCondition"](expr, condExpr);
   },
-  "getValue": function (expr) {
+  "getValue"(expr) {
     return Module["_BinaryenSwitchGetValue"](expr);
   },
-  "setValue": function (expr, valueExpr) {
+  "setValue"(expr, valueExpr) {
     Module["_BinaryenSwitchSetValue"](expr, valueExpr);
   },
-  "getNameAt": function (expr, index) {
+  "getNameAt"(expr, index) {
     return UTF8ToString(Module["_BinaryenSwitchGetNameAt"](expr, index));
   },
-  "setNameAt": function (expr, index, name) {
+  "setNameAt"(expr, index, name) {
     preserveStack(() => {
       Module["_BinaryenSwitchSetNameAt"](expr, index, strToStack(name));
     });
   },
-  "appendName": function (expr, name) {
+  "appendName"(expr, name) {
     preserveStack(() =>
       Module["_BinaryenSwitchAppendName"](expr, strToStack(name)),
     );
   },
-  "insertNameAt": function (expr, index, name) {
+  "insertNameAt"(expr, index, name) {
     preserveStack(() => {
       Module["_BinaryenSwitchInsertNameAt"](expr, index, strToStack(name));
     });
   },
-  "removeNameAt": function (expr, index) {
+  "removeNameAt"(expr, index) {
     return UTF8ToString(Module["_BinaryenSwitchRemoveNameAt"](expr, index));
   },
 });
 
 Module["Call"] = makeExpressionWrapper(Module["_BinaryenCallId"](), {
-  "getTarget": function (expr) {
+  "getTarget"(expr) {
     return UTF8ToString(Module["_BinaryenCallGetTarget"](expr));
   },
-  "setTarget": function (expr, targetName) {
+  "setTarget"(expr, targetName) {
     preserveStack(() => {
       Module["_BinaryenCallSetTarget"](expr, strToStack(targetName));
     });
   },
-  "getNumOperands": function (expr) {
+  "getNumOperands"(expr) {
     return Module["_BinaryenCallGetNumOperands"](expr);
   },
-  "getOperands": function (expr) {
+  "getOperands"(expr) {
     return getAllNested(
       expr,
       Module["_BinaryenCallGetNumOperands"],
       Module["_BinaryenCallGetOperandAt"],
     );
   },
-  "setOperands": function (expr, operands) {
+  "setOperands"(expr, operands) {
     setAllNested(
       expr,
       operands,
@@ -6630,25 +6823,25 @@ Module["Call"] = makeExpressionWrapper(Module["_BinaryenCallId"](), {
       Module["_BinaryenCallRemoveOperandAt"],
     );
   },
-  "getOperandAt": function (expr, index) {
+  "getOperandAt"(expr, index) {
     return Module["_BinaryenCallGetOperandAt"](expr, index);
   },
-  "setOperandAt": function (expr, index, operandExpr) {
+  "setOperandAt"(expr, index, operandExpr) {
     Module["_BinaryenCallSetOperandAt"](expr, index, operandExpr);
   },
-  "appendOperand": function (expr, operandExpr) {
+  "appendOperand"(expr, operandExpr) {
     return Module["_BinaryenCallAppendOperand"](expr, operandExpr);
   },
-  "insertOperandAt": function (expr, index, operandExpr) {
+  "insertOperandAt"(expr, index, operandExpr) {
     Module["_BinaryenCallInsertOperandAt"](expr, index, operandExpr);
   },
-  "removeOperandAt": function (expr, index) {
+  "removeOperandAt"(expr, index) {
     return Module["_BinaryenCallRemoveOperandAt"](expr, index);
   },
-  "isReturn": function (expr) {
+  "isReturn"(expr) {
     return Boolean(Module["_BinaryenCallIsReturn"](expr));
   },
-  "setReturn": function (expr, isReturn) {
+  "setReturn"(expr, isReturn) {
     Module["_BinaryenCallSetReturn"](expr, isReturn);
   },
 });
@@ -6656,31 +6849,31 @@ Module["Call"] = makeExpressionWrapper(Module["_BinaryenCallId"](), {
 Module["CallIndirect"] = makeExpressionWrapper(
   Module["_BinaryenCallIndirectId"](),
   {
-    "getTarget": function (expr) {
+    "getTarget"(expr) {
       return Module["_BinaryenCallIndirectGetTarget"](expr);
     },
-    "setTarget": function (expr, targetExpr) {
+    "setTarget"(expr, targetExpr) {
       Module["_BinaryenCallIndirectSetTarget"](expr, targetExpr);
     },
-    "getTable": function (expr) {
+    "getTable"(expr) {
       return UTF8ToString(Module["_BinaryenCallIndirectGetTable"](expr));
     },
-    "setTable": function (expr, table) {
+    "setTable"(expr, table) {
       preserveStack(() => {
         Module["_BinaryenCallIndirectSetTable"](expr, strToStack(table));
       });
     },
-    "getNumOperands": function (expr) {
+    "getNumOperands"(expr) {
       return Module["_BinaryenCallIndirectGetNumOperands"](expr);
     },
-    "getOperands": function (expr) {
+    "getOperands"(expr) {
       return getAllNested(
         expr,
         Module["_BinaryenCallIndirectGetNumOperands"],
         Module["_BinaryenCallIndirectGetOperandAt"],
       );
     },
-    "setOperands": function (expr, operands) {
+    "setOperands"(expr, operands) {
       setAllNested(
         expr,
         operands,
@@ -6690,74 +6883,74 @@ Module["CallIndirect"] = makeExpressionWrapper(
         Module["_BinaryenCallIndirectRemoveOperandAt"],
       );
     },
-    "getOperandAt": function (expr, index) {
+    "getOperandAt"(expr, index) {
       return Module["_BinaryenCallIndirectGetOperandAt"](expr, index);
     },
-    "setOperandAt": function (expr, index, operandExpr) {
+    "setOperandAt"(expr, index, operandExpr) {
       Module["_BinaryenCallIndirectSetOperandAt"](expr, index, operandExpr);
     },
-    "appendOperand": function (expr, operandExpr) {
+    "appendOperand"(expr, operandExpr) {
       return Module["_BinaryenCallIndirectAppendOperand"](expr, operandExpr);
     },
-    "insertOperandAt": function (expr, index, operandExpr) {
+    "insertOperandAt"(expr, index, operandExpr) {
       Module["_BinaryenCallIndirectInsertOperandAt"](expr, index, operandExpr);
     },
-    "removeOperandAt": function (expr, index) {
+    "removeOperandAt"(expr, index) {
       return Module["_BinaryenCallIndirectRemoveOperandAt"](expr, index);
     },
-    "isReturn": function (expr) {
+    "isReturn"(expr) {
       return Boolean(Module["_BinaryenCallIndirectIsReturn"](expr));
     },
-    "setReturn": function (expr, isReturn) {
+    "setReturn"(expr, isReturn) {
       Module["_BinaryenCallIndirectSetReturn"](expr, isReturn);
     },
-    "getParams": function (expr) {
+    "getParams"(expr) {
       return Module["_BinaryenCallIndirectGetParams"](expr);
     },
-    "setParams": function (expr, params) {
+    "setParams"(expr, params) {
       Module["_BinaryenCallIndirectSetParams"](expr, params);
     },
-    "getResults": function (expr) {
+    "getResults"(expr) {
       return Module["_BinaryenCallIndirectGetResults"](expr);
     },
-    "setResults": function (expr, results) {
+    "setResults"(expr, results) {
       Module["_BinaryenCallIndirectSetResults"](expr, results);
     },
   },
 );
 
 Module["LocalGet"] = makeExpressionWrapper(Module["_BinaryenLocalGetId"](), {
-  "getIndex": function (expr) {
+  "getIndex"(expr) {
     return Module["_BinaryenLocalGetGetIndex"](expr);
   },
-  "setIndex": function (expr, index) {
+  "setIndex"(expr, index) {
     Module["_BinaryenLocalGetSetIndex"](expr, index);
   },
 });
 
 Module["LocalSet"] = makeExpressionWrapper(Module["_BinaryenLocalSetId"](), {
-  "getIndex": function (expr) {
+  "getIndex"(expr) {
     return Module["_BinaryenLocalSetGetIndex"](expr);
   },
-  "setIndex": function (expr, index) {
+  "setIndex"(expr, index) {
     Module["_BinaryenLocalSetSetIndex"](expr, index);
   },
-  "isTee": function (expr) {
+  "isTee"(expr) {
     return Boolean(Module["_BinaryenLocalSetIsTee"](expr));
   },
-  "getValue": function (expr) {
+  "getValue"(expr) {
     return Module["_BinaryenLocalSetGetValue"](expr);
   },
-  "setValue": function (expr, valueExpr) {
+  "setValue"(expr, valueExpr) {
     Module["_BinaryenLocalSetSetValue"](expr, valueExpr);
   },
 });
 
 Module["GlobalGet"] = makeExpressionWrapper(Module["_BinaryenGlobalGetId"](), {
-  "getName": function (expr) {
+  "getName"(expr) {
     return UTF8ToString(Module["_BinaryenGlobalGetGetName"](expr));
   },
-  "setName": function (expr, name) {
+  "setName"(expr, name) {
     preserveStack(() => {
       Module["_BinaryenGlobalGetSetName"](expr, strToStack(name));
     });
@@ -6765,67 +6958,67 @@ Module["GlobalGet"] = makeExpressionWrapper(Module["_BinaryenGlobalGetId"](), {
 });
 
 Module["GlobalSet"] = makeExpressionWrapper(Module["_BinaryenGlobalSetId"](), {
-  "getName": function (expr) {
+  "getName"(expr) {
     return UTF8ToString(Module["_BinaryenGlobalSetGetName"](expr));
   },
-  "setName": function (expr, name) {
+  "setName"(expr, name) {
     preserveStack(() => {
       Module["_BinaryenGlobalSetSetName"](expr, strToStack(name));
     });
   },
-  "getValue": function (expr) {
+  "getValue"(expr) {
     return Module["_BinaryenGlobalSetGetValue"](expr);
   },
-  "setValue": function (expr, valueExpr) {
+  "setValue"(expr, valueExpr) {
     Module["_BinaryenGlobalSetSetValue"](expr, valueExpr);
   },
 });
 
 Module["TableGet"] = makeExpressionWrapper(Module["_BinaryenTableGetId"](), {
-  "getTable": function (expr) {
+  "getTable"(expr) {
     return UTF8ToString(Module["_BinaryenTableGetGetTable"](expr));
   },
-  "setTable": function (expr, name) {
+  "setTable"(expr, name) {
     preserveStack(() => {
       Module["_BinaryenTableGetSetTable"](expr, strToStack(name));
     });
   },
-  "getIndex": function (expr) {
+  "getIndex"(expr) {
     return Module["_BinaryenTableGetGetIndex"](expr);
   },
-  "setIndex": function (expr, indexExpr) {
+  "setIndex"(expr, indexExpr) {
     Module["_BinaryenTableGetSetIndex"](expr, indexExpr);
   },
 });
 
 Module["TableSet"] = makeExpressionWrapper(Module["_BinaryenTableSetId"](), {
-  "getTable": function (expr) {
+  "getTable"(expr) {
     return UTF8ToString(Module["_BinaryenTableSetGetTable"](expr));
   },
-  "setTable": function (expr, name) {
+  "setTable"(expr, name) {
     preserveStack(() => {
       Module["_BinaryenTableSetSetTable"](expr, strToStack(name));
     });
   },
-  "getIndex": function (expr) {
+  "getIndex"(expr) {
     return Module["_BinaryenTableSetGetIndex"](expr);
   },
-  "setIndex": function (expr, indexExpr) {
+  "setIndex"(expr, indexExpr) {
     Module["_BinaryenTableSetSetIndex"](expr, indexExpr);
   },
-  "getValue": function (expr) {
+  "getValue"(expr) {
     return Module["_BinaryenTableSetGetValue"](expr);
   },
-  "setValue": function (expr, valueExpr) {
+  "setValue"(expr, valueExpr) {
     Module["_BinaryenTableSetSetValue"](expr, valueExpr);
   },
 });
 
 Module["TableSize"] = makeExpressionWrapper(Module["_BinaryenTableSizeId"](), {
-  "getTable": function (expr) {
+  "getTable"(expr) {
     return UTF8ToString(Module["_BinaryenTableSizeGetTable"](expr));
   },
-  "setTable": function (expr, name) {
+  "setTable"(expr, name) {
     preserveStack(() => {
       Module["_BinaryenTableSizeSetTable"](expr, strToStack(name));
     });
@@ -6833,24 +7026,24 @@ Module["TableSize"] = makeExpressionWrapper(Module["_BinaryenTableSizeId"](), {
 });
 
 Module["TableGrow"] = makeExpressionWrapper(Module["_BinaryenTableGrowId"](), {
-  "getTable": function (expr) {
+  "getTable"(expr) {
     return UTF8ToString(Module["_BinaryenTableGrowGetTable"](expr));
   },
-  "setTable": function (expr, name) {
+  "setTable"(expr, name) {
     preserveStack(() => {
       Module["_BinaryenTableGrowSetTable"](expr, strToStack(name));
     });
   },
-  "getValue": function (expr) {
+  "getValue"(expr) {
     return Module["_BinaryenTableGrowGetValue"](expr);
   },
-  "setValue": function (expr, valueExpr) {
+  "setValue"(expr, valueExpr) {
     Module["_BinaryenTableGrowSetValue"](expr, valueExpr);
   },
-  "getDelta": function (expr) {
+  "getDelta"(expr) {
     return Module["_BinaryenTableGrowGetDelta"](expr);
   },
-  "setDelta": function (expr, deltaExpr) {
+  "setDelta"(expr, deltaExpr) {
     Module["_BinaryenTableGrowSetDelta"](expr, deltaExpr);
   },
 });
@@ -6863,131 +7056,137 @@ Module["MemorySize"] = makeExpressionWrapper(
 Module["MemoryGrow"] = makeExpressionWrapper(
   Module["_BinaryenMemoryGrowId"](),
   {
-    "getDelta": function (expr) {
+    "getDelta"(expr) {
       return Module["_BinaryenMemoryGrowGetDelta"](expr);
     },
-    "setDelta": function (expr, deltaExpr) {
+    "setDelta"(expr, deltaExpr) {
       Module["_BinaryenMemoryGrowSetDelta"](expr, deltaExpr);
     },
   },
 );
 
 Module["Load"] = makeExpressionWrapper(Module["_BinaryenLoadId"](), {
-  "isAtomic": function (expr) {
+  "isAtomic"(expr) {
     return Boolean(Module["_BinaryenLoadIsAtomic"](expr));
   },
-  "setAtomic": function (expr, isAtomic) {
-    Module["_BinaryenLoadSetAtomic"](expr, isAtomic);
+  "getMemoryOrder"(expr) {
+    return Module["_BinaryenLoadGetMemoryOrder"](expr);
   },
-  "isSigned": function (expr) {
+  "setMemoryOrder"(expr, order) {
+    Module["_BinaryenLoadSetMemoryOrder"](expr, order);
+  },
+  "isSigned"(expr) {
     return Boolean(Module["_BinaryenLoadIsSigned"](expr));
   },
-  "setSigned": function (expr, isSigned) {
+  "setSigned"(expr, isSigned) {
     Module["_BinaryenLoadSetSigned"](expr, isSigned);
   },
-  "getOffset": function (expr) {
+  "getOffset"(expr) {
     return Module["_BinaryenLoadGetOffset"](expr);
   },
-  "setOffset": function (expr, offset) {
+  "setOffset"(expr, offset) {
     Module["_BinaryenLoadSetOffset"](expr, offset);
   },
-  "getBytes": function (expr) {
+  "getBytes"(expr) {
     return Module["_BinaryenLoadGetBytes"](expr);
   },
-  "setBytes": function (expr, bytes) {
+  "setBytes"(expr, bytes) {
     Module["_BinaryenLoadSetBytes"](expr, bytes);
   },
-  "getAlign": function (expr) {
+  "getAlign"(expr) {
     return Module["_BinaryenLoadGetAlign"](expr);
   },
-  "setAlign": function (expr, align) {
+  "setAlign"(expr, align) {
     Module["_BinaryenLoadSetAlign"](expr, align);
   },
-  "getPtr": function (expr) {
+  "getPtr"(expr) {
     return Module["_BinaryenLoadGetPtr"](expr);
   },
-  "setPtr": function (expr, ptrExpr) {
+  "setPtr"(expr, ptrExpr) {
     Module["_BinaryenLoadSetPtr"](expr, ptrExpr);
   },
 });
 
 Module["Store"] = makeExpressionWrapper(Module["_BinaryenStoreId"](), {
-  "isAtomic": function (expr) {
+  "isAtomic"(expr) {
     return Boolean(Module["_BinaryenStoreIsAtomic"](expr));
   },
-  "setAtomic": function (expr, isAtomic) {
-    Module["_BinaryenStoreSetAtomic"](expr, isAtomic);
+  "getMemoryOrder"(expr) {
+    return Module["_BinaryenStoreGetMemoryOrder"](expr);
   },
-  "getBytes": function (expr) {
+  "setMemoryOrder"(expr, order) {
+    Module["_BinaryenStoreSetMemoryOrder"](expr, order);
+  },
+  "getBytes"(expr) {
     return Module["_BinaryenStoreGetBytes"](expr);
   },
-  "setBytes": function (expr, bytes) {
+  "setBytes"(expr, bytes) {
     Module["_BinaryenStoreSetBytes"](expr, bytes);
   },
-  "getOffset": function (expr) {
+  "getOffset"(expr) {
     return Module["_BinaryenStoreGetOffset"](expr);
   },
-  "setOffset": function (expr, offset) {
+  "setOffset"(expr, offset) {
     Module["_BinaryenStoreSetOffset"](expr, offset);
   },
-  "getAlign": function (expr) {
+  "getAlign"(expr) {
     return Module["_BinaryenStoreGetAlign"](expr);
   },
-  "setAlign": function (expr, align) {
+  "setAlign"(expr, align) {
     Module["_BinaryenStoreSetAlign"](expr, align);
   },
-  "getPtr": function (expr) {
+  "getPtr"(expr) {
     return Module["_BinaryenStoreGetPtr"](expr);
   },
-  "setPtr": function (expr, ptrExpr) {
+  "setPtr"(expr, ptrExpr) {
     Module["_BinaryenStoreSetPtr"](expr, ptrExpr);
   },
-  "getValue": function (expr) {
+  "getValue"(expr) {
     return Module["_BinaryenStoreGetValue"](expr);
   },
-  "setValue": function (expr, valueExpr) {
+  "setValue"(expr, valueExpr) {
     Module["_BinaryenStoreSetValue"](expr, valueExpr);
   },
-  "getValueType": function (expr) {
+  "getValueType"(expr) {
     return Module["_BinaryenStoreGetValueType"](expr);
   },
-  "setValueType": function (expr, valueType) {
+  "setValueType"(expr, valueType) {
     Module["_BinaryenStoreSetValueType"](expr, valueType);
   },
 });
 
 Module["Const"] = makeExpressionWrapper(Module["_BinaryenConstId"](), {
-  "getValueI32": function (expr) {
+  "getValueI32"(expr) {
     return Module["_BinaryenConstGetValueI32"](expr);
   },
-  "setValueI32": function (expr, value) {
+  "setValueI32"(expr, value) {
     Module["_BinaryenConstSetValueI32"](expr, value);
   },
-  "getValueI64Low": function (expr) {
+  "getValueI64Low"(expr) {
     return Module["_BinaryenConstGetValueI64Low"](expr);
   },
-  "setValueI64Low": function (expr, value) {
+  "setValueI64Low"(expr, value) {
     Module["_BinaryenConstSetValueI64Low"](expr, value);
   },
-  "getValueI64High": function (expr) {
+  "getValueI64High"(expr) {
     return Module["_BinaryenConstGetValueI64High"](expr);
   },
-  "setValueI64High": function (expr, value) {
+  "setValueI64High"(expr, value) {
     Module["_BinaryenConstSetValueI64High"](expr, value);
   },
-  "getValueF32": function (expr) {
+  "getValueF32"(expr) {
     return Module["_BinaryenConstGetValueF32"](expr);
   },
-  "setValueF32": function (expr, value) {
+  "setValueF32"(expr, value) {
     Module["_BinaryenConstSetValueF32"](expr, value);
   },
-  "getValueF64": function (expr) {
+  "getValueF64"(expr) {
     return Module["_BinaryenConstGetValueF64"](expr);
   },
-  "setValueF64": function (expr, value) {
+  "setValueF64"(expr, value) {
     Module["_BinaryenConstSetValueF64"](expr, value);
   },
-  "getValueV128": function (expr) {
+  "getValueV128"(expr) {
     let value;
     preserveStack(() => {
       const tempBuffer = stackAlloc(16);
@@ -6999,7 +7198,7 @@ Module["Const"] = makeExpressionWrapper(Module["_BinaryenConstId"](), {
     });
     return value;
   },
-  "setValueV128": function (expr, value) {
+  "setValueV128"(expr, value) {
     preserveStack(() => {
       const tempBuffer = stackAlloc(16);
       for (let i = 0; i < 16; ++i) {
@@ -7011,109 +7210,115 @@ Module["Const"] = makeExpressionWrapper(Module["_BinaryenConstId"](), {
 });
 
 Module["Unary"] = makeExpressionWrapper(Module["_BinaryenUnaryId"](), {
-  "getOp": function (expr) {
+  "getOp"(expr) {
     return Module["_BinaryenUnaryGetOp"](expr);
   },
-  "setOp": function (expr, op) {
+  "setOp"(expr, op) {
     Module["_BinaryenUnarySetOp"](expr, op);
   },
-  "getValue": function (expr) {
+  "getValue"(expr) {
     return Module["_BinaryenUnaryGetValue"](expr);
   },
-  "setValue": function (expr, valueExpr) {
+  "setValue"(expr, valueExpr) {
     Module["_BinaryenUnarySetValue"](expr, valueExpr);
   },
 });
 
 Module["Binary"] = makeExpressionWrapper(Module["_BinaryenBinaryId"](), {
-  "getOp": function (expr) {
+  "getOp"(expr) {
     return Module["_BinaryenBinaryGetOp"](expr);
   },
-  "setOp": function (expr, op) {
+  "setOp"(expr, op) {
     Module["_BinaryenBinarySetOp"](expr, op);
   },
-  "getLeft": function (expr) {
+  "getLeft"(expr) {
     return Module["_BinaryenBinaryGetLeft"](expr);
   },
-  "setLeft": function (expr, leftExpr) {
+  "setLeft"(expr, leftExpr) {
     Module["_BinaryenBinarySetLeft"](expr, leftExpr);
   },
-  "getRight": function (expr) {
+  "getRight"(expr) {
     return Module["_BinaryenBinaryGetRight"](expr);
   },
-  "setRight": function (expr, rightExpr) {
+  "setRight"(expr, rightExpr) {
     Module["_BinaryenBinarySetRight"](expr, rightExpr);
   },
 });
 
 Module["Select"] = makeExpressionWrapper(Module["_BinaryenSelectId"](), {
-  "getIfTrue": function (expr) {
+  "getIfTrue"(expr) {
     return Module["_BinaryenSelectGetIfTrue"](expr);
   },
-  "setIfTrue": function (expr, ifTrueExpr) {
+  "setIfTrue"(expr, ifTrueExpr) {
     Module["_BinaryenSelectSetIfTrue"](expr, ifTrueExpr);
   },
-  "getIfFalse": function (expr) {
+  "getIfFalse"(expr) {
     return Module["_BinaryenSelectGetIfFalse"](expr);
   },
-  "setIfFalse": function (expr, ifFalseExpr) {
+  "setIfFalse"(expr, ifFalseExpr) {
     Module["_BinaryenSelectSetIfFalse"](expr, ifFalseExpr);
   },
-  "getCondition": function (expr) {
+  "getCondition"(expr) {
     return Module["_BinaryenSelectGetCondition"](expr);
   },
-  "setCondition": function (expr, condExpr) {
+  "setCondition"(expr, condExpr) {
     Module["_BinaryenSelectSetCondition"](expr, condExpr);
   },
 });
 
 Module["Drop"] = makeExpressionWrapper(Module["_BinaryenDropId"](), {
-  "getValue": function (expr) {
+  "getValue"(expr) {
     return Module["_BinaryenDropGetValue"](expr);
   },
-  "setValue": function (expr, valueExpr) {
+  "setValue"(expr, valueExpr) {
     Module["_BinaryenDropSetValue"](expr, valueExpr);
   },
 });
 
 Module["Return"] = makeExpressionWrapper(Module["_BinaryenReturnId"](), {
-  "getValue": function (expr) {
+  "getValue"(expr) {
     return Module["_BinaryenReturnGetValue"](expr);
   },
-  "setValue": function (expr, valueExpr) {
+  "setValue"(expr, valueExpr) {
     Module["_BinaryenReturnSetValue"](expr, valueExpr);
   },
 });
 
 Module["AtomicRMW"] = makeExpressionWrapper(Module["_BinaryenAtomicRMWId"](), {
-  "getOp": function (expr) {
+  "getOp"(expr) {
     return Module["_BinaryenAtomicRMWGetOp"](expr);
   },
-  "setOp": function (expr, op) {
+  "setOp"(expr, op) {
     Module["_BinaryenAtomicRMWSetOp"](expr, op);
   },
-  "getBytes": function (expr) {
+  "getMemoryOrder"(expr) {
+    return Module["_BinaryenAtomicRMWGetMemoryOrder"](expr);
+  },
+  "setMemoryOrder"(expr, order) {
+    Module["_BinaryenAtomicRMWSetMemoryOrder"](expr, order);
+  },
+  "getBytes"(expr) {
     return Module["_BinaryenAtomicRMWGetBytes"](expr);
   },
-  "setBytes": function (expr, bytes) {
+  "setBytes"(expr, bytes) {
     Module["_BinaryenAtomicRMWSetBytes"](expr, bytes);
   },
-  "getOffset": function (expr) {
+  "getOffset"(expr) {
     return Module["_BinaryenAtomicRMWGetOffset"](expr);
   },
-  "setOffset": function (expr, offset) {
+  "setOffset"(expr, offset) {
     Module["_BinaryenAtomicRMWSetOffset"](expr, offset);
   },
-  "getPtr": function (expr) {
+  "getPtr"(expr) {
     return Module["_BinaryenAtomicRMWGetPtr"](expr);
   },
-  "setPtr": function (expr, ptrExpr) {
+  "setPtr"(expr, ptrExpr) {
     Module["_BinaryenAtomicRMWSetPtr"](expr, ptrExpr);
   },
-  "getValue": function (expr) {
+  "getValue"(expr) {
     return Module["_BinaryenAtomicRMWGetValue"](expr);
   },
-  "setValue": function (expr, valueExpr) {
+  "setValue"(expr, valueExpr) {
     Module["_BinaryenAtomicRMWSetValue"](expr, valueExpr);
   },
 });
@@ -7121,34 +7326,40 @@ Module["AtomicRMW"] = makeExpressionWrapper(Module["_BinaryenAtomicRMWId"](), {
 Module["AtomicCmpxchg"] = makeExpressionWrapper(
   Module["_BinaryenAtomicCmpxchgId"](),
   {
-    "getBytes": function (expr) {
+    "getMemoryOrder"(expr) {
+      return Module["_BinaryenAtomicCmpxchgGetMemoryOrder"](expr);
+    },
+    "setMemoryOrder"(expr, order) {
+      Module["_BinaryenAtomicCmpxchgSetMemoryOrder"](expr, order);
+    },
+    "getBytes"(expr) {
       return Module["_BinaryenAtomicCmpxchgGetBytes"](expr);
     },
-    "setBytes": function (expr, bytes) {
+    "setBytes"(expr, bytes) {
       Module["_BinaryenAtomicCmpxchgSetBytes"](expr, bytes);
     },
-    "getOffset": function (expr) {
+    "getOffset"(expr) {
       return Module["_BinaryenAtomicCmpxchgGetOffset"](expr);
     },
-    "setOffset": function (expr, offset) {
+    "setOffset"(expr, offset) {
       Module["_BinaryenAtomicCmpxchgSetOffset"](expr, offset);
     },
-    "getPtr": function (expr) {
+    "getPtr"(expr) {
       return Module["_BinaryenAtomicCmpxchgGetPtr"](expr);
     },
-    "setPtr": function (expr, ptrExpr) {
+    "setPtr"(expr, ptrExpr) {
       Module["_BinaryenAtomicCmpxchgSetPtr"](expr, ptrExpr);
     },
-    "getExpected": function (expr) {
+    "getExpected"(expr) {
       return Module["_BinaryenAtomicCmpxchgGetExpected"](expr);
     },
-    "setExpected": function (expr, expectedExpr) {
+    "setExpected"(expr, expectedExpr) {
       Module["_BinaryenAtomicCmpxchgSetExpected"](expr, expectedExpr);
     },
-    "getReplacement": function (expr) {
+    "getReplacement"(expr) {
       return Module["_BinaryenAtomicCmpxchgGetReplacement"](expr);
     },
-    "setReplacement": function (expr, replacementExpr) {
+    "setReplacement"(expr, replacementExpr) {
       Module["_BinaryenAtomicCmpxchgSetReplacement"](expr, replacementExpr);
     },
   },
@@ -7157,28 +7368,28 @@ Module["AtomicCmpxchg"] = makeExpressionWrapper(
 Module["AtomicWait"] = makeExpressionWrapper(
   Module["_BinaryenAtomicWaitId"](),
   {
-    "getPtr": function (expr) {
+    "getPtr"(expr) {
       return Module["_BinaryenAtomicWaitGetPtr"](expr);
     },
-    "setPtr": function (expr, ptrExpr) {
+    "setPtr"(expr, ptrExpr) {
       Module["_BinaryenAtomicWaitSetPtr"](expr, ptrExpr);
     },
-    "getExpected": function (expr) {
+    "getExpected"(expr) {
       return Module["_BinaryenAtomicWaitGetExpected"](expr);
     },
-    "setExpected": function (expr, expectedExpr) {
+    "setExpected"(expr, expectedExpr) {
       Module["_BinaryenAtomicWaitSetExpected"](expr, expectedExpr);
     },
-    "getTimeout": function (expr) {
+    "getTimeout"(expr) {
       return Module["_BinaryenAtomicWaitGetTimeout"](expr);
     },
-    "setTimeout": function (expr, timeoutExpr) {
+    "setTimeout"(expr, timeoutExpr) {
       Module["_BinaryenAtomicWaitSetTimeout"](expr, timeoutExpr);
     },
-    "getExpectedType": function (expr) {
+    "getExpectedType"(expr) {
       return Module["_BinaryenAtomicWaitGetExpectedType"](expr);
     },
-    "setExpectedType": function (expr, expectedType) {
+    "setExpectedType"(expr, expectedType) {
       Module["_BinaryenAtomicWaitSetExpectedType"](expr, expectedType);
     },
   },
@@ -7187,16 +7398,16 @@ Module["AtomicWait"] = makeExpressionWrapper(
 Module["AtomicNotify"] = makeExpressionWrapper(
   Module["_BinaryenAtomicNotifyId"](),
   {
-    "getPtr": function (expr) {
+    "getPtr"(expr) {
       return Module["_BinaryenAtomicNotifyGetPtr"](expr);
     },
-    "setPtr": function (expr, ptrExpr) {
+    "setPtr"(expr, ptrExpr) {
       Module["_BinaryenAtomicNotifySetPtr"](expr, ptrExpr);
     },
-    "getNotifyCount": function (expr) {
+    "getNotifyCount"(expr) {
       return Module["_BinaryenAtomicNotifyGetNotifyCount"](expr);
     },
-    "setNotifyCount": function (expr, notifyCountExpr) {
+    "setNotifyCount"(expr, notifyCountExpr) {
       Module["_BinaryenAtomicNotifySetNotifyCount"](expr, notifyCountExpr);
     },
   },
@@ -7205,10 +7416,10 @@ Module["AtomicNotify"] = makeExpressionWrapper(
 Module["AtomicFence"] = makeExpressionWrapper(
   Module["_BinaryenAtomicFenceId"](),
   {
-    "getOrder": function (expr) {
+    "getOrder"(expr) {
       return Module["_BinaryenAtomicFenceGetOrder"](expr);
     },
-    "setOrder": function (expr, order) {
+    "setOrder"(expr, order) {
       Module["_BinaryenAtomicFenceSetOrder"](expr, order);
     },
   },
@@ -7217,22 +7428,22 @@ Module["AtomicFence"] = makeExpressionWrapper(
 Module["SIMDExtract"] = makeExpressionWrapper(
   Module["_BinaryenSIMDExtractId"](),
   {
-    "getOp": function (expr) {
+    "getOp"(expr) {
       return Module["_BinaryenSIMDExtractGetOp"](expr);
     },
-    "setOp": function (expr, op) {
+    "setOp"(expr, op) {
       Module["_BinaryenSIMDExtractSetOp"](expr, op);
     },
-    "getVec": function (expr) {
+    "getVec"(expr) {
       return Module["_BinaryenSIMDExtractGetVec"](expr);
     },
-    "setVec": function (expr, vecExpr) {
+    "setVec"(expr, vecExpr) {
       Module["_BinaryenSIMDExtractSetVec"](expr, vecExpr);
     },
-    "getIndex": function (expr) {
+    "getIndex"(expr) {
       return Module["_BinaryenSIMDExtractGetIndex"](expr);
     },
-    "setIndex": function (expr, index) {
+    "setIndex"(expr, index) {
       Module["_BinaryenSIMDExtractSetIndex"](expr, index);
     },
   },
@@ -7241,28 +7452,28 @@ Module["SIMDExtract"] = makeExpressionWrapper(
 Module["SIMDReplace"] = makeExpressionWrapper(
   Module["_BinaryenSIMDReplaceId"](),
   {
-    "getOp": function (expr) {
+    "getOp"(expr) {
       return Module["_BinaryenSIMDReplaceGetOp"](expr);
     },
-    "setOp": function (expr, op) {
+    "setOp"(expr, op) {
       Module["_BinaryenSIMDReplaceSetOp"](expr, op);
     },
-    "getVec": function (expr) {
+    "getVec"(expr) {
       return Module["_BinaryenSIMDReplaceGetVec"](expr);
     },
-    "setVec": function (expr, vecExpr) {
+    "setVec"(expr, vecExpr) {
       Module["_BinaryenSIMDReplaceSetVec"](expr, vecExpr);
     },
-    "getIndex": function (expr) {
+    "getIndex"(expr) {
       return Module["_BinaryenSIMDReplaceGetIndex"](expr);
     },
-    "setIndex": function (expr, index) {
+    "setIndex"(expr, index) {
       Module["_BinaryenSIMDReplaceSetIndex"](expr, index);
     },
-    "getValue": function (expr) {
+    "getValue"(expr) {
       return Module["_BinaryenSIMDReplaceGetValue"](expr);
     },
-    "setValue": function (expr, valueExpr) {
+    "setValue"(expr, valueExpr) {
       Module["_BinaryenSIMDReplaceSetValue"](expr, valueExpr);
     },
   },
@@ -7271,19 +7482,19 @@ Module["SIMDReplace"] = makeExpressionWrapper(
 Module["SIMDShuffle"] = makeExpressionWrapper(
   Module["_BinaryenSIMDShuffleId"](),
   {
-    "getLeft": function (expr) {
+    "getLeft"(expr) {
       return Module["_BinaryenSIMDShuffleGetLeft"](expr);
     },
-    "setLeft": function (expr, leftExpr) {
+    "setLeft"(expr, leftExpr) {
       Module["_BinaryenSIMDShuffleSetLeft"](expr, leftExpr);
     },
-    "getRight": function (expr) {
+    "getRight"(expr) {
       return Module["_BinaryenSIMDShuffleGetRight"](expr);
     },
-    "setRight": function (expr, rightExpr) {
+    "setRight"(expr, rightExpr) {
       Module["_BinaryenSIMDShuffleSetRight"](expr, rightExpr);
     },
-    "getMask": function (expr) {
+    "getMask"(expr) {
       let mask;
       preserveStack(() => {
         const tempBuffer = stackAlloc(16);
@@ -7295,7 +7506,7 @@ Module["SIMDShuffle"] = makeExpressionWrapper(
       });
       return mask;
     },
-    "setMask": function (expr, mask) {
+    "setMask"(expr, mask) {
       preserveStack(() => {
         const tempBuffer = stackAlloc(16);
         for (let i = 0; i < 16; ++i) {
@@ -7310,77 +7521,77 @@ Module["SIMDShuffle"] = makeExpressionWrapper(
 Module["SIMDTernary"] = makeExpressionWrapper(
   Module["_BinaryenSIMDTernaryId"](),
   {
-    "getOp": function (expr) {
+    "getOp"(expr) {
       return Module["_BinaryenSIMDTernaryGetOp"](expr);
     },
-    "setOp": function (expr, op) {
+    "setOp"(expr, op) {
       Module["_BinaryenSIMDTernarySetOp"](expr, op);
     },
-    "getA": function (expr) {
+    "getA"(expr) {
       return Module["_BinaryenSIMDTernaryGetA"](expr);
     },
-    "setA": function (expr, aExpr) {
+    "setA"(expr, aExpr) {
       Module["_BinaryenSIMDTernarySetA"](expr, aExpr);
     },
-    "getB": function (expr) {
+    "getB"(expr) {
       return Module["_BinaryenSIMDTernaryGetB"](expr);
     },
-    "setB": function (expr, bExpr) {
+    "setB"(expr, bExpr) {
       Module["_BinaryenSIMDTernarySetB"](expr, bExpr);
     },
-    "getC": function (expr) {
+    "getC"(expr) {
       return Module["_BinaryenSIMDTernaryGetC"](expr);
     },
-    "setC": function (expr, cExpr) {
+    "setC"(expr, cExpr) {
       Module["_BinaryenSIMDTernarySetC"](expr, cExpr);
     },
   },
 );
 
 Module["SIMDShift"] = makeExpressionWrapper(Module["_BinaryenSIMDShiftId"](), {
-  "getOp": function (expr) {
+  "getOp"(expr) {
     return Module["_BinaryenSIMDShiftGetOp"](expr);
   },
-  "setOp": function (expr, op) {
+  "setOp"(expr, op) {
     Module["_BinaryenSIMDShiftSetOp"](expr, op);
   },
-  "getVec": function (expr) {
+  "getVec"(expr) {
     return Module["_BinaryenSIMDShiftGetVec"](expr);
   },
-  "setVec": function (expr, vecExpr) {
+  "setVec"(expr, vecExpr) {
     Module["_BinaryenSIMDShiftSetVec"](expr, vecExpr);
   },
-  "getShift": function (expr) {
+  "getShift"(expr) {
     return Module["_BinaryenSIMDShiftGetShift"](expr);
   },
-  "setShift": function (expr, shiftExpr) {
+  "setShift"(expr, shiftExpr) {
     Module["_BinaryenSIMDShiftSetShift"](expr, shiftExpr);
   },
 });
 
 Module["SIMDLoad"] = makeExpressionWrapper(Module["_BinaryenSIMDLoadId"](), {
-  "getOp": function (expr) {
+  "getOp"(expr) {
     return Module["_BinaryenSIMDLoadGetOp"](expr);
   },
-  "setOp": function (expr, op) {
+  "setOp"(expr, op) {
     Module["_BinaryenSIMDLoadSetOp"](expr, op);
   },
-  "getOffset": function (expr) {
+  "getOffset"(expr) {
     return Module["_BinaryenSIMDLoadGetOffset"](expr);
   },
-  "setOffset": function (expr, offset) {
+  "setOffset"(expr, offset) {
     Module["_BinaryenSIMDLoadSetOffset"](expr, offset);
   },
-  "getAlign": function (expr) {
+  "getAlign"(expr) {
     return Module["_BinaryenSIMDLoadGetAlign"](expr);
   },
-  "setAlign": function (expr, align) {
+  "setAlign"(expr, align) {
     Module["_BinaryenSIMDLoadSetAlign"](expr, align);
   },
-  "getPtr": function (expr) {
+  "getPtr"(expr) {
     return Module["_BinaryenSIMDLoadGetPtr"](expr);
   },
-  "setPtr": function (expr, ptrExpr) {
+  "setPtr"(expr, ptrExpr) {
     Module["_BinaryenSIMDLoadSetPtr"](expr, ptrExpr);
   },
 });
@@ -7388,43 +7599,43 @@ Module["SIMDLoad"] = makeExpressionWrapper(Module["_BinaryenSIMDLoadId"](), {
 Module["SIMDLoadStoreLane"] = makeExpressionWrapper(
   Module["_BinaryenSIMDLoadStoreLaneId"](),
   {
-    "getOp": function (expr) {
+    "getOp"(expr) {
       return Module["_BinaryenSIMDLoadStoreLaneGetOp"](expr);
     },
-    "setOp": function (expr, op) {
+    "setOp"(expr, op) {
       Module["_BinaryenSIMDLoadStoreLaneSetOp"](expr, op);
     },
-    "getOffset": function (expr) {
+    "getOffset"(expr) {
       return Module["_BinaryenSIMDLoadStoreLaneGetOffset"](expr);
     },
-    "setOffset": function (expr, offset) {
+    "setOffset"(expr, offset) {
       Module["_BinaryenSIMDLoadStoreLaneSetOffset"](expr, offset);
     },
-    "getAlign": function (expr) {
+    "getAlign"(expr) {
       return Module["_BinaryenSIMDLoadStoreLaneGetAlign"](expr);
     },
-    "setAlign": function (expr, align) {
+    "setAlign"(expr, align) {
       Module["_BinaryenSIMDLoadStoreLaneSetAlign"](expr, align);
     },
-    "getIndex": function (expr) {
+    "getIndex"(expr) {
       return Module["_BinaryenSIMDLoadStoreLaneGetIndex"](expr);
     },
-    "setIndex": function (expr, align) {
+    "setIndex"(expr, align) {
       Module["_BinaryenSIMDLoadStoreLaneSetIndex"](expr, align);
     },
-    "getPtr": function (expr) {
+    "getPtr"(expr) {
       return Module["_BinaryenSIMDLoadStoreLaneGetPtr"](expr);
     },
-    "setPtr": function (expr, ptrExpr) {
+    "setPtr"(expr, ptrExpr) {
       Module["_BinaryenSIMDLoadStoreLaneSetPtr"](expr, ptrExpr);
     },
-    "getVec": function (expr) {
+    "getVec"(expr) {
       return Module["_BinaryenSIMDLoadStoreLaneGetVec"](expr);
     },
-    "setVec": function (expr, ptrExpr) {
+    "setVec"(expr, ptrExpr) {
       Module["_BinaryenSIMDLoadStoreLaneSetVec"](expr, ptrExpr);
     },
-    "isStore": function (expr) {
+    "isStore"(expr) {
       return Boolean(Module["_BinaryenSIMDLoadStoreLaneIsStore"](expr));
     },
   },
@@ -7433,40 +7644,40 @@ Module["SIMDLoadStoreLane"] = makeExpressionWrapper(
 Module["MemoryInit"] = makeExpressionWrapper(
   Module["_BinaryenMemoryInitId"](),
   {
-    "getSegment": function (expr) {
+    "getSegment"(expr) {
       return UTF8ToString(Module["_BinaryenMemoryInitGetSegment"](expr));
     },
-    "setSegment": function (expr, segment) {
+    "setSegment"(expr, segment) {
       preserveStack(() =>
         Module["_BinaryenMemoryInitSetSegment"](expr, strToStack(segment)),
       );
     },
-    "getDest": function (expr) {
+    "getDest"(expr) {
       return Module["_BinaryenMemoryInitGetDest"](expr);
     },
-    "setDest": function (expr, destExpr) {
+    "setDest"(expr, destExpr) {
       Module["_BinaryenMemoryInitSetDest"](expr, destExpr);
     },
-    "getOffset": function (expr) {
+    "getOffset"(expr) {
       return Module["_BinaryenMemoryInitGetOffset"](expr);
     },
-    "setOffset": function (expr, offset) {
+    "setOffset"(expr, offset) {
       Module["_BinaryenMemoryInitSetOffset"](expr, offset);
     },
-    "getSize": function (expr) {
+    "getSize"(expr) {
       return Module["_BinaryenMemoryInitGetSize"](expr);
     },
-    "setSize": function (expr, sizeExpr) {
+    "setSize"(expr, sizeExpr) {
       Module["_BinaryenMemoryInitSetSize"](expr, sizeExpr);
     },
   },
 );
 
 Module["DataDrop"] = makeExpressionWrapper(Module["_BinaryenDataDropId"](), {
-  "getSegment": function (expr) {
+  "getSegment"(expr) {
     return UTF8ToString(Module["_BinaryenDataDropGetSegment"](expr));
   },
-  "setSegment": function (expr, segment) {
+  "setSegment"(expr, segment) {
     preserveStack(() =>
       Module["_BinaryenDataDropSetSegment"](expr, strToStack(segment)),
     );
@@ -7476,22 +7687,22 @@ Module["DataDrop"] = makeExpressionWrapper(Module["_BinaryenDataDropId"](), {
 Module["MemoryCopy"] = makeExpressionWrapper(
   Module["_BinaryenMemoryCopyId"](),
   {
-    "getDest": function (expr) {
+    "getDest"(expr) {
       return Module["_BinaryenMemoryCopyGetDest"](expr);
     },
-    "setDest": function (expr, destExpr) {
+    "setDest"(expr, destExpr) {
       Module["_BinaryenMemoryCopySetDest"](expr, destExpr);
     },
-    "getSource": function (expr) {
+    "getSource"(expr) {
       return Module["_BinaryenMemoryCopyGetSource"](expr);
     },
-    "setSource": function (expr, sourceExpr) {
+    "setSource"(expr, sourceExpr) {
       Module["_BinaryenMemoryCopySetSource"](expr, sourceExpr);
     },
-    "getSize": function (expr) {
+    "getSize"(expr) {
       return Module["_BinaryenMemoryCopyGetSize"](expr);
     },
-    "setSize": function (expr, sizeExpr) {
+    "setSize"(expr, sizeExpr) {
       Module["_BinaryenMemoryCopySetSize"](expr, sizeExpr);
     },
   },
@@ -7500,56 +7711,56 @@ Module["MemoryCopy"] = makeExpressionWrapper(
 Module["MemoryFill"] = makeExpressionWrapper(
   Module["_BinaryenMemoryFillId"](),
   {
-    "getDest": function (expr) {
+    "getDest"(expr) {
       return Module["_BinaryenMemoryFillGetDest"](expr);
     },
-    "setDest": function (expr, destExpr) {
+    "setDest"(expr, destExpr) {
       Module["_BinaryenMemoryFillSetDest"](expr, destExpr);
     },
-    "getValue": function (expr) {
+    "getValue"(expr) {
       return Module["_BinaryenMemoryFillGetValue"](expr);
     },
-    "setValue": function (expr, valueExpr) {
+    "setValue"(expr, valueExpr) {
       Module["_BinaryenMemoryFillSetValue"](expr, valueExpr);
     },
-    "getSize": function (expr) {
+    "getSize"(expr) {
       return Module["_BinaryenMemoryFillGetSize"](expr);
     },
-    "setSize": function (expr, sizeExpr) {
+    "setSize"(expr, sizeExpr) {
       Module["_BinaryenMemoryFillSetSize"](expr, sizeExpr);
     },
   },
 );
 
 Module["RefIsNull"] = makeExpressionWrapper(Module["_BinaryenRefIsNullId"](), {
-  "getValue": function (expr) {
+  "getValue"(expr) {
     return Module["_BinaryenRefIsNullGetValue"](expr);
   },
-  "setValue": function (expr, valueExpr) {
+  "setValue"(expr, valueExpr) {
     Module["_BinaryenRefIsNullSetValue"](expr, valueExpr);
   },
 });
 
 Module["RefAs"] = makeExpressionWrapper(Module["_BinaryenRefAsId"](), {
-  "getOp": function (expr) {
+  "getOp"(expr) {
     return Module["_BinaryenRefAsGetOp"](expr);
   },
-  "setOp": function (expr, op) {
+  "setOp"(expr, op) {
     Module["_BinaryenRefAsSetOp"](expr, op);
   },
-  "getValue": function (expr) {
+  "getValue"(expr) {
     return Module["_BinaryenRefAsGetValue"](expr);
   },
-  "setValue": function (expr, valueExpr) {
+  "setValue"(expr, valueExpr) {
     Module["_BinaryenRefAsSetValue"](expr, valueExpr);
   },
 });
 
 Module["RefFunc"] = makeExpressionWrapper(Module["_BinaryenRefFuncId"](), {
-  "getFunc": function (expr) {
+  "getFunc"(expr) {
     return UTF8ToString(Module["_BinaryenRefFuncGetFunc"](expr));
   },
-  "setFunc": function (expr, funcName) {
+  "setFunc"(expr, funcName) {
     preserveStack(() => {
       Module["_BinaryenRefFuncSetFunc"](expr, strToStack(funcName));
     });
@@ -7557,40 +7768,40 @@ Module["RefFunc"] = makeExpressionWrapper(Module["_BinaryenRefFuncId"](), {
 });
 
 Module["RefEq"] = makeExpressionWrapper(Module["_BinaryenRefEqId"](), {
-  "getLeft": function (expr) {
+  "getLeft"(expr) {
     return Module["_BinaryenRefEqGetLeft"](expr);
   },
-  "setLeft": function (expr, leftExpr) {
+  "setLeft"(expr, leftExpr) {
     return Module["_BinaryenRefEqSetLeft"](expr, leftExpr);
   },
-  "getRight": function (expr) {
+  "getRight"(expr) {
     return Module["_BinaryenRefEqGetRight"](expr);
   },
-  "setRight": function (expr, rightExpr) {
+  "setRight"(expr, rightExpr) {
     return Module["_BinaryenRefEqSetRight"](expr, rightExpr);
   },
 });
 
 Module["RefTest"] = makeExpressionWrapper(Module["_BinaryenRefTestId"](), {
-  "getRef": function (expr) {
+  "getRef"(expr) {
     return Module["_BinaryenRefTestGetRef"](expr);
   },
-  "setRef": function (expr, ref) {
+  "setRef"(expr, ref) {
     Module["_BinaryenRefTestSetRef"](expr, ref);
   },
-  "getCastType": function (expr) {
+  "getCastType"(expr) {
     return Module["_BinaryenRefTestGetCastType"](expr);
   },
-  "setCastType": function (expr, castType) {
+  "setCastType"(expr, castType) {
     Module["_BinaryenRefTestSetCastType"](expr, castType);
   },
 });
 
 Module["RefCast"] = makeExpressionWrapper(Module["_BinaryenRefCastId"](), {
-  "getRef": function (expr) {
+  "getRef"(expr) {
     return Module["_BinaryenRefCastGetRef"](expr);
   },
-  "setRef": function (expr, ref) {
+  "setRef"(expr, ref) {
     Module["_BinaryenRefCastSetRef"](expr, ref);
   },
 });
@@ -7599,44 +7810,44 @@ Module["RefCast"] = makeExpressionWrapper(Module["_BinaryenRefCastId"](), {
 // TODO: extern.convert_any
 
 Module["BrOn"] = makeExpressionWrapper(Module["_BinaryenBrOnId"](), {
-  "getOp": function (expr) {
+  "getOp"(expr) {
     return Module["_BinaryenBrOnGetOp"](expr);
   },
-  "setOp": function (expr, op) {
+  "setOp"(expr, op) {
     Module["_BinaryenBrOnSetOp"](expr, op);
   },
-  "getName": function (expr) {
+  "getName"(expr) {
     return UTF8ToString(Module["_BinaryenBrOnGetName"](expr));
   },
-  "setName": function (expr, name) {
+  "setName"(expr, name) {
     preserveStack(() => Module["_BinaryenBrOnSetName"](expr, strToStack(name)));
   },
-  "getRef": function (expr) {
+  "getRef"(expr) {
     return Module["_BinaryenBrOnGetRef"](expr);
   },
-  "setRef": function (expr, ref) {
+  "setRef"(expr, ref) {
     Module["_BinaryenBrOnSetRef"](expr, ref);
   },
-  "getCastType": function (expr) {
+  "getCastType"(expr) {
     return Module["_BinaryenBrOnGetCastType"](expr);
   },
-  "setCastType": function (expr, castType) {
+  "setCastType"(expr, castType) {
     Module["_BinaryenBrOnSetCastType"](expr, castType);
   },
 });
 
 Module["StructNew"] = makeExpressionWrapper(Module["_BinaryenStructNewId"](), {
-  "getNumOperands": function (expr) {
+  "getNumOperands"(expr) {
     return Module["_BinaryenStructNewGetNumOperands"](expr);
   },
-  "getOperands": function (expr) {
+  "getOperands"(expr) {
     return getAllNested(
       expr,
       Module["_BinaryenStructNewGetNumOperands"],
       Module["_BinaryenStructNewGetOperandAt"],
     );
   },
-  "setOperands": function (expr, operands) {
+  "setOperands"(expr, operands) {
     setAllNested(
       expr,
       operands,
@@ -7646,76 +7857,76 @@ Module["StructNew"] = makeExpressionWrapper(Module["_BinaryenStructNewId"](), {
       Module["_BinaryenStructNewRemoveOperandAt"],
     );
   },
-  "getOperandAt": function (expr, index) {
+  "getOperandAt"(expr, index) {
     return Module["_BinaryenStructNewGetOperandAt"](expr, index);
   },
-  "setOperandAt": function (expr, index, operandExpr) {
+  "setOperandAt"(expr, index, operandExpr) {
     Module["_BinaryenStructNewSetOperandAt"](expr, index, operandExpr);
   },
-  "appendOperand": function (expr, operandExpr) {
+  "appendOperand"(expr, operandExpr) {
     return Module["_BinaryenStructNewAppendOperand"](expr, operandExpr);
   },
-  "insertOperandAt": function (expr, index, operandExpr) {
+  "insertOperandAt"(expr, index, operandExpr) {
     Module["_BinaryenStructNewInsertOperandAt"](expr, index, operandExpr);
   },
-  "removeOperandAt": function (expr, index) {
+  "removeOperandAt"(expr, index) {
     return Module["_BinaryenStructNewRemoveOperandAt"](expr, index);
   },
 });
 
 Module["StructGet"] = makeExpressionWrapper(Module["_BinaryenStructGetId"](), {
-  "getIndex": function (expr) {
+  "getIndex"(expr) {
     return Module["_BinaryenStructGetGetIndex"](expr);
   },
-  "setIndex": function (expr, index) {
+  "setIndex"(expr, index) {
     Module["_BinaryenStructGetSetIndex"](expr, index);
   },
-  "getRef": function (expr) {
+  "getRef"(expr) {
     return Module["_BinaryenStructGetGetRef"](expr);
   },
-  "setRef": function (expr, ref) {
+  "setRef"(expr, ref) {
     Module["_BinaryenStructGetSetRef"](expr, ref);
   },
-  "isSigned": function (expr) {
+  "isSigned"(expr) {
     return Boolean(Module["_BinaryenStructGetIsSigned"](expr));
   },
-  "setSigned": function (expr, signed) {
+  "setSigned"(expr, signed) {
     Module["_BinaryenStructGetSetSigned"](expr, signed);
   },
 });
 
 Module["StructSet"] = makeExpressionWrapper(Module["_BinaryenStructSetId"](), {
-  "getIndex": function (expr) {
+  "getIndex"(expr) {
     return Module["_BinaryenStructSetGetIndex"](expr);
   },
-  "setIndex": function (expr, index) {
+  "setIndex"(expr, index) {
     Module["_BinaryenStructSetSetIndex"](expr, index);
   },
-  "getRef": function (expr) {
+  "getRef"(expr) {
     return Module["_BinaryenStructSetGetRef"](expr);
   },
-  "setRef": function (expr, ref) {
+  "setRef"(expr, ref) {
     Module["_BinaryenStructSetSetRef"](expr, ref);
   },
-  "getValue": function (expr) {
+  "getValue"(expr) {
     return Module["_BinaryenStructSetGetValue"](expr);
   },
-  "setValue": function (expr, value) {
+  "setValue"(expr, value) {
     Module["_BinaryenStructSetSetValue"](expr, value);
   },
 });
 
 Module["ArrayNew"] = makeExpressionWrapper(Module["_BinaryenArrayNewId"](), {
-  "getInit": function (expr) {
+  "getInit"(expr) {
     return Module["_BinaryenArrayNewGetInit"](expr);
   },
-  "setInit": function (expr, init) {
+  "setInit"(expr, init) {
     Module["_BinaryenArrayNewSetInit"](expr, init);
   },
-  "getSize": function (expr) {
+  "getSize"(expr) {
     return Module["_BinaryenArrayNewGetSize"](expr);
   },
-  "setSize": function (expr, size) {
+  "setSize"(expr, size) {
     Module["_BinaryenArrayNewSetSize"](expr, size);
   },
 });
@@ -7723,17 +7934,17 @@ Module["ArrayNew"] = makeExpressionWrapper(Module["_BinaryenArrayNewId"](), {
 Module["ArrayNewFixed"] = makeExpressionWrapper(
   Module["_BinaryenArrayNewFixedId"](),
   {
-    "getNumValues": function (expr) {
+    "getNumValues"(expr) {
       return Module["_BinaryenArrayNewFixedGetNumValues"](expr);
     },
-    "getValues": function (expr) {
+    "getValues"(expr) {
       return getAllNested(
         expr,
         Module["_BinaryenArrayNewFixedGetNumValues"],
         Module["_BinaryenArrayNewFixedGetValueAt"],
       );
     },
-    "setValues": function (expr, values) {
+    "setValues"(expr, values) {
       setAllNested(
         expr,
         values,
@@ -7743,19 +7954,19 @@ Module["ArrayNewFixed"] = makeExpressionWrapper(
         Module["_BinaryenArrayNewFixedRemoveValueAt"],
       );
     },
-    "getValueAt": function (expr, index) {
+    "getValueAt"(expr, index) {
       return Module["_BinaryenArrayNewFixedGetValueAt"](expr, index);
     },
-    "setValueAt": function (expr, index, valueExpr) {
+    "setValueAt"(expr, index, valueExpr) {
       Module["_BinaryenArrayNewFixedSetValueAt"](expr, index, valueExpr);
     },
-    "appendValue": function (expr, valueExpr) {
+    "appendValue"(expr, valueExpr) {
       return Module["_BinaryenArrayNewFixedAppendValue"](expr, valueExpr);
     },
-    "insertValueAt": function (expr, index, valueExpr) {
+    "insertValueAt"(expr, index, valueExpr) {
       Module["_BinaryenArrayNewFixedInsertValueAt"](expr, index, valueExpr);
     },
-    "removeValueAt": function (expr, index) {
+    "removeValueAt"(expr, index) {
       return Module["_BinaryenArrayNewFixedRemoveValueAt"](expr, index);
     },
   },
@@ -7764,24 +7975,24 @@ Module["ArrayNewFixed"] = makeExpressionWrapper(
 Module["ArrayNewData"] = makeExpressionWrapper(
   Module["_BinaryenArrayNewDataId"](),
   {
-    "getSegment": function (expr) {
+    "getSegment"(expr) {
       return UTF8ToString(Module["_BinaryenArrayNewDataGetSegment"](expr));
     },
-    "setSegment": function (expr, segment) {
+    "setSegment"(expr, segment) {
       preserveStack(() =>
         Module["_BinaryenArrayNewDataSetSegment"](expr, strToStack(segment)),
       );
     },
-    "getOffset": function (expr) {
+    "getOffset"(expr) {
       return Module["_BinaryenArrayNewDataGetOffset"](expr);
     },
-    "setOffset": function (expr, offset) {
+    "setOffset"(expr, offset) {
       Module["_BinaryenArrayNewDataSetOffset"](expr, offset);
     },
-    "getSize": function (expr) {
+    "getSize"(expr) {
       return Module["_BinaryenArrayNewDataGetSize"](expr);
     },
-    "setSize": function (expr, size) {
+    "setSize"(expr, size) {
       Module["_BinaryenArrayNewDataSetSize"](expr, size);
     },
   },
@@ -7790,136 +8001,136 @@ Module["ArrayNewData"] = makeExpressionWrapper(
 Module["ArrayNewElem"] = makeExpressionWrapper(
   Module["_BinaryenArrayNewElemId"](),
   {
-    "getSegment": function (expr) {
+    "getSegment"(expr) {
       return UTF8ToString(Module["_BinaryenArrayNewElemGetSegment"](expr));
     },
-    "setSegment": function (expr, segment) {
+    "setSegment"(expr, segment) {
       preserveStack(() =>
         Module["_BinaryenArrayNewElemSetSegment"](expr, strToStack(segment)),
       );
     },
-    "getOffset": function (expr) {
+    "getOffset"(expr) {
       return Module["_BinaryenArrayNewElemGetOffset"](expr);
     },
-    "setOffset": function (expr, offset) {
+    "setOffset"(expr, offset) {
       Module["_BinaryenArrayNewElemSetOffset"](expr, offset);
     },
-    "getSize": function (expr) {
+    "getSize"(expr) {
       return Module["_BinaryenArrayNewElemGetSize"](expr);
     },
-    "setSize": function (expr, size) {
+    "setSize"(expr, size) {
       Module["_BinaryenArrayNewElemSetSize"](expr, size);
     },
   },
 );
 
 Module["ArrayGet"] = makeExpressionWrapper(Module["_BinaryenArrayGetId"](), {
-  "getRef": function (expr) {
+  "getRef"(expr) {
     return Module["_BinaryenArrayGetGetRef"](expr);
   },
-  "setRef": function (expr, ref) {
+  "setRef"(expr, ref) {
     Module["_BinaryenArrayGetSetRef"](expr, ref);
   },
-  "getIndex": function (expr) {
+  "getIndex"(expr) {
     return Module["_BinaryenArrayGetGetIndex"](expr);
   },
-  "setIndex": function (expr, index) {
+  "setIndex"(expr, index) {
     Module["_BinaryenArrayGetSetIndex"](expr, index);
   },
-  "isSigned": function (expr) {
+  "isSigned"(expr) {
     return Boolean(Module["_BinaryenArrayGetIsSigned"](expr));
   },
-  "setSigned": function (expr, signed) {
+  "setSigned"(expr, signed) {
     Module["_BinaryenArrayGetSetSigned"](expr, signed);
   },
 });
 
 Module["ArraySet"] = makeExpressionWrapper(Module["_BinaryenArraySetId"](), {
-  "getRef": function (expr) {
+  "getRef"(expr) {
     return Module["_BinaryenArraySetGetRef"](expr);
   },
-  "setRef": function (expr, ref) {
+  "setRef"(expr, ref) {
     Module["_BinaryenArraySetSetRef"](expr, ref);
   },
-  "getIndex": function (expr) {
+  "getIndex"(expr) {
     return Module["_BinaryenArraySetGetIndex"](expr);
   },
-  "setIndex": function (expr, index) {
+  "setIndex"(expr, index) {
     Module["_BinaryenArraySetSetIndex"](expr, index);
   },
-  "getValue": function (expr) {
+  "getValue"(expr) {
     return Module["_BinaryenArraySetGetValue"](expr);
   },
-  "setValue": function (expr, value) {
+  "setValue"(expr, value) {
     Module["_BinaryenArraySetSetValue"](expr, value);
   },
 });
 
 Module["ArrayLen"] = makeExpressionWrapper(Module["_BinaryenArrayLenId"](), {
-  "getRef": function (expr) {
+  "getRef"(expr) {
     return Module["_BinaryenArrayLenGetRef"](expr);
   },
-  "setRef": function (expr, ref) {
+  "setRef"(expr, ref) {
     Module["_BinaryenArrayLenSetRef"](expr, ref);
   },
 });
 
 Module["ArrayFill"] = makeExpressionWrapper(Module["_BinaryenArrayFillId"](), {
-  "getRef": function (expr) {
+  "getRef"(expr) {
     return Module["_BinaryenArrayFillGetRef"](expr);
   },
-  "setRef": function (expr, ref) {
+  "setRef"(expr, ref) {
     Module["_BinaryenArrayFillSetRef"](expr, ref);
   },
-  "getIndex": function (expr) {
+  "getIndex"(expr) {
     return Module["_BinaryenArrayFillGetIndex"](expr);
   },
-  "setIndex": function (expr, index) {
+  "setIndex"(expr, index) {
     Module["_BinaryenArrayFillSetIndex"](expr, index);
   },
-  "getValue": function (expr) {
+  "getValue"(expr) {
     return Module["_BinaryenArrayFillGetValue"](expr);
   },
-  "setValue": function (expr, value) {
+  "setValue"(expr, value) {
     Module["_BinaryenArrayFillSetValue"](expr, value);
   },
-  "getSize": function (expr) {
+  "getSize"(expr) {
     return Module["_BinaryenArrayFillGetSize"](expr);
   },
-  "setSize": function (expr, size) {
+  "setSize"(expr, size) {
     Module["_BinaryenArrayFillSetSize"](expr, size);
   },
 });
 
 Module["ArrayCopy"] = makeExpressionWrapper(Module["_BinaryenArrayCopyId"](), {
-  "getDestRef": function (expr) {
+  "getDestRef"(expr) {
     return Module["_BinaryenArrayCopyGetDestRef"](expr);
   },
-  "setDestRef": function (expr, ref) {
+  "setDestRef"(expr, ref) {
     Module["_BinaryenArrayCopySetDestRef"](expr, ref);
   },
-  "getDestIndex": function (expr) {
+  "getDestIndex"(expr) {
     return Module["_BinaryenArrayCopyGetDestIndex"](expr);
   },
-  "setDestIndex": function (expr, index) {
+  "setDestIndex"(expr, index) {
     Module["_BinaryenArrayCopySetDestIndex"](expr, index);
   },
-  "getSrcRef": function (expr) {
+  "getSrcRef"(expr) {
     return Module["_BinaryenArrayCopyGetSrcRef"](expr);
   },
-  "setSrcRef": function (expr, ref) {
+  "setSrcRef"(expr, ref) {
     Module["_BinaryenArrayCopySetSrcRef"](expr, ref);
   },
-  "getSrcIndex": function (expr) {
+  "getSrcIndex"(expr) {
     return Module["_BinaryenArrayCopyGetSrcIndex"](expr);
   },
-  "setSrcIndex": function (expr, index) {
+  "setSrcIndex"(expr, index) {
     Module["_BinaryenArrayCopySetSrcIndex"](expr, index);
   },
-  "getLength": function (expr) {
+  "getLength"(expr) {
     return Module["_BinaryenArrayCopyGetLength"](expr);
   },
-  "setLength": function (expr, length) {
+  "setLength"(expr, length) {
     Module["_BinaryenArrayCopySetLength"](expr, length);
   },
 });
@@ -7927,36 +8138,36 @@ Module["ArrayCopy"] = makeExpressionWrapper(Module["_BinaryenArrayCopyId"](), {
 Module["ArrayInitData"] = makeExpressionWrapper(
   Module["_BinaryenArrayInitDataId"](),
   {
-    "getSegment": function (expr) {
+    "getSegment"(expr) {
       return UTF8ToString(Module["_BinaryenArrayInitDataGetSegment"](expr));
     },
-    "setSegment": function (expr, segment) {
+    "setSegment"(expr, segment) {
       preserveStack(() =>
         Module["_BinaryenArrayInitDataSetSegment"](expr, strToStack(segment)),
       );
     },
-    "getRef": function (expr) {
+    "getRef"(expr) {
       return Module["_BinaryenArrayInitDataGetRef"](expr);
     },
-    "setRef": function (expr, ref) {
+    "setRef"(expr, ref) {
       Module["_BinaryenArrayInitDataSetRef"](expr, ref);
     },
-    "getIndex": function (expr) {
+    "getIndex"(expr) {
       return Module["_BinaryenArrayInitDataGetIndex"](expr);
     },
-    "setIndex": function (expr, index) {
+    "setIndex"(expr, index) {
       Module["_BinaryenArrayInitDataSetIndex"](expr, index);
     },
-    "getOffset": function (expr) {
+    "getOffset"(expr) {
       return Module["_BinaryenArrayInitDataGetOffset"](expr);
     },
-    "setOffset": function (expr, offset) {
+    "setOffset"(expr, offset) {
       Module["_BinaryenArrayInitDataSetOffset"](expr, offset);
     },
-    "getSize": function (expr) {
+    "getSize"(expr) {
       return Module["_BinaryenArrayInitDataGetSize"](expr);
     },
-    "setSize": function (expr, size) {
+    "setSize"(expr, size) {
       Module["_BinaryenArrayInitDataSetSize"](expr, size);
     },
   },
@@ -7965,68 +8176,68 @@ Module["ArrayInitData"] = makeExpressionWrapper(
 Module["ArrayInitElem"] = makeExpressionWrapper(
   Module["_BinaryenArrayInitElemId"](),
   {
-    "getSegment": function (expr) {
+    "getSegment"(expr) {
       return UTF8ToString(Module["_BinaryenArrayInitElemGetSegment"](expr));
     },
-    "setSegment": function (expr, segment) {
+    "setSegment"(expr, segment) {
       preserveStack(() =>
         Module["_BinaryenArrayInitElemSetSegment"](expr, strToStack(segment)),
       );
     },
-    "getRef": function (expr) {
+    "getRef"(expr) {
       return Module["_BinaryenArrayInitElemGetRef"](expr);
     },
-    "setRef": function (expr, ref) {
+    "setRef"(expr, ref) {
       Module["_BinaryenArrayInitElemSetRef"](expr, ref);
     },
-    "getIndex": function (expr) {
+    "getIndex"(expr) {
       return Module["_BinaryenArrayInitElemGetIndex"](expr);
     },
-    "setIndex": function (expr, index) {
+    "setIndex"(expr, index) {
       Module["_BinaryenArrayInitElemSetIndex"](expr, index);
     },
-    "getOffset": function (expr) {
+    "getOffset"(expr) {
       return Module["_BinaryenArrayInitElemGetOffset"](expr);
     },
-    "setOffset": function (expr, offset) {
+    "setOffset"(expr, offset) {
       Module["_BinaryenArrayInitElemSetOffset"](expr, offset);
     },
-    "getSize": function (expr) {
+    "getSize"(expr) {
       return Module["_BinaryenArrayInitElemGetSize"](expr);
     },
-    "setSize": function (expr, size) {
+    "setSize"(expr, size) {
       Module["_BinaryenArrayInitElemSetSize"](expr, size);
     },
   },
 );
 
 Module["Try"] = makeExpressionWrapper(Module["_BinaryenTryId"](), {
-  "getName": function (expr) {
+  "getName"(expr) {
     const name = Module["_BinaryenTryGetName"](expr);
     return name ? UTF8ToString(name) : null;
   },
-  "setName": function (expr, name) {
+  "setName"(expr, name) {
     preserveStack(() => {
       Module["_BinaryenTrySetName"](expr, strToStack(name));
     });
   },
-  "getBody": function (expr) {
+  "getBody"(expr) {
     return Module["_BinaryenTryGetBody"](expr);
   },
-  "setBody": function (expr, bodyExpr) {
+  "setBody"(expr, bodyExpr) {
     Module["_BinaryenTrySetBody"](expr, bodyExpr);
   },
-  "getNumCatchTags": function (expr) {
+  "getNumCatchTags"(expr) {
     return Module["_BinaryenTryGetNumCatchTags"](expr);
   },
-  "getCatchTags": function (expr) {
+  "getCatchTags"(expr) {
     return getAllNested(
       expr,
       Module["_BinaryenTryGetNumCatchTags"],
       Module["_BinaryenTryGetCatchTagAt"],
     ).map((p) => UTF8ToString(p));
   },
-  "setCatchTags": function (expr, catchTags) {
+  "setCatchTags"(expr, catchTags) {
     preserveStack(() => {
       setAllNested(
         expr,
@@ -8038,38 +8249,38 @@ Module["Try"] = makeExpressionWrapper(Module["_BinaryenTryId"](), {
       );
     });
   },
-  "getCatchTagAt": function (expr, index) {
+  "getCatchTagAt"(expr, index) {
     return UTF8ToString(Module["_BinaryenTryGetCatchTagAt"](expr, index));
   },
-  "setCatchTagAt": function (expr, index, catchTag) {
+  "setCatchTagAt"(expr, index, catchTag) {
     preserveStack(() => {
       Module["_BinaryenTrySetCatchTagAt"](expr, index, strToStack(catchTag));
     });
   },
-  "appendCatchTag": function (expr, catchTag) {
+  "appendCatchTag"(expr, catchTag) {
     preserveStack(() =>
       Module["_BinaryenTryAppendCatchTag"](expr, strToStack(catchTag)),
     );
   },
-  "insertCatchTagAt": function (expr, index, catchTag) {
+  "insertCatchTagAt"(expr, index, catchTag) {
     preserveStack(() => {
       Module["_BinaryenTryInsertCatchTagAt"](expr, index, strToStack(catchTag));
     });
   },
-  "removeCatchTagAt": function (expr, index) {
+  "removeCatchTagAt"(expr, index) {
     return UTF8ToString(Module["_BinaryenTryRemoveCatchTagAt"](expr, index));
   },
-  "getNumCatchBodies": function (expr) {
+  "getNumCatchBodies"(expr) {
     return Module["_BinaryenTryGetNumCatchBodies"](expr);
   },
-  "getCatchBodies": function (expr) {
+  "getCatchBodies"(expr) {
     return getAllNested(
       expr,
       Module["_BinaryenTryGetNumCatchBodies"],
       Module["_BinaryenTryGetCatchBodyAt"],
     );
   },
-  "setCatchBodies": function (expr, catchBodies) {
+  "setCatchBodies"(expr, catchBodies) {
     setAllNested(
       expr,
       catchBodies,
@@ -8079,58 +8290,58 @@ Module["Try"] = makeExpressionWrapper(Module["_BinaryenTryId"](), {
       Module["_BinaryenTryRemoveCatchBodyAt"],
     );
   },
-  "getCatchBodyAt": function (expr, index) {
+  "getCatchBodyAt"(expr, index) {
     return Module["_BinaryenTryGetCatchBodyAt"](expr, index);
   },
-  "setCatchBodyAt": function (expr, index, catchExpr) {
+  "setCatchBodyAt"(expr, index, catchExpr) {
     Module["_BinaryenTrySetCatchBodyAt"](expr, index, catchExpr);
   },
-  "appendCatchBody": function (expr, catchExpr) {
+  "appendCatchBody"(expr, catchExpr) {
     return Module["_BinaryenTryAppendCatchBody"](expr, catchExpr);
   },
-  "insertCatchBodyAt": function (expr, index, catchExpr) {
+  "insertCatchBodyAt"(expr, index, catchExpr) {
     Module["_BinaryenTryInsertCatchBodyAt"](expr, index, catchExpr);
   },
-  "removeCatchBodyAt": function (expr, index) {
+  "removeCatchBodyAt"(expr, index) {
     return Module["_BinaryenTryRemoveCatchBodyAt"](expr, index);
   },
-  "hasCatchAll": function (expr) {
+  "hasCatchAll"(expr) {
     return Boolean(Module["_BinaryenTryHasCatchAll"](expr));
   },
-  "getDelegateTarget": function (expr) {
+  "getDelegateTarget"(expr) {
     const name = Module["_BinaryenTryGetDelegateTarget"](expr);
     return name ? UTF8ToString(name) : null;
   },
-  "setDelegateTarget": function (expr, name) {
+  "setDelegateTarget"(expr, name) {
     preserveStack(() => {
       Module["_BinaryenTrySetDelegateTarget"](expr, strToStack(name));
     });
   },
-  "isDelegate": function (expr) {
+  "isDelegate"(expr) {
     return Boolean(Module["_BinaryenTryIsDelegate"](expr));
   },
 });
 
 Module["Throw"] = makeExpressionWrapper(Module["_BinaryenThrowId"](), {
-  "getTag": function (expr) {
+  "getTag"(expr) {
     return UTF8ToString(Module["_BinaryenThrowGetTag"](expr));
   },
-  "setTag": function (expr, tagName) {
+  "setTag"(expr, tagName) {
     preserveStack(() => {
       Module["_BinaryenThrowSetTag"](expr, strToStack(tagName));
     });
   },
-  "getNumOperands": function (expr) {
+  "getNumOperands"(expr) {
     return Module["_BinaryenThrowGetNumOperands"](expr);
   },
-  "getOperands": function (expr) {
+  "getOperands"(expr) {
     return getAllNested(
       expr,
       Module["_BinaryenThrowGetNumOperands"],
       Module["_BinaryenThrowGetOperandAt"],
     );
   },
-  "setOperands": function (expr, operands) {
+  "setOperands"(expr, operands) {
     setAllNested(
       expr,
       operands,
@@ -8140,29 +8351,29 @@ Module["Throw"] = makeExpressionWrapper(Module["_BinaryenThrowId"](), {
       Module["_BinaryenThrowRemoveOperandAt"],
     );
   },
-  "getOperandAt": function (expr, index) {
+  "getOperandAt"(expr, index) {
     return Module["_BinaryenThrowGetOperandAt"](expr, index);
   },
-  "setOperandAt": function (expr, index, operandExpr) {
+  "setOperandAt"(expr, index, operandExpr) {
     Module["_BinaryenThrowSetOperandAt"](expr, index, operandExpr);
   },
-  "appendOperand": function (expr, operandExpr) {
+  "appendOperand"(expr, operandExpr) {
     return Module["_BinaryenThrowAppendOperand"](expr, operandExpr);
   },
-  "insertOperandAt": function (expr, index, operandExpr) {
+  "insertOperandAt"(expr, index, operandExpr) {
     Module["_BinaryenThrowInsertOperandAt"](expr, index, operandExpr);
   },
-  "removeOperandAt": function (expr, index) {
+  "removeOperandAt"(expr, index) {
     return Module["_BinaryenThrowRemoveOperandAt"](expr, index);
   },
 });
 
 Module["Rethrow"] = makeExpressionWrapper(Module["_BinaryenRethrowId"](), {
-  "getTarget": function (expr) {
+  "getTarget"(expr) {
     const target = Module["_BinaryenRethrowGetTarget"](expr);
     return target ? UTF8ToString(target) : null;
   },
-  "setTarget": function (expr, target) {
+  "setTarget"(expr, target) {
     preserveStack(() => {
       Module["_BinaryenRethrowSetTarget"](expr, strToStack(target));
     });
@@ -8170,17 +8381,17 @@ Module["Rethrow"] = makeExpressionWrapper(Module["_BinaryenRethrowId"](), {
 });
 
 Module["TupleMake"] = makeExpressionWrapper(Module["_BinaryenTupleMakeId"](), {
-  "getNumOperands": function (expr) {
+  "getNumOperands"(expr) {
     return Module["_BinaryenTupleMakeGetNumOperands"](expr);
   },
-  "getOperands": function (expr) {
+  "getOperands"(expr) {
     return getAllNested(
       expr,
       Module["_BinaryenTupleMakeGetNumOperands"],
       Module["_BinaryenTupleMakeGetOperandAt"],
     );
   },
-  "setOperands": function (expr, operands) {
+  "setOperands"(expr, operands) {
     setAllNested(
       expr,
       operands,
@@ -8190,19 +8401,19 @@ Module["TupleMake"] = makeExpressionWrapper(Module["_BinaryenTupleMakeId"](), {
       Module["_BinaryenTupleMakeRemoveOperandAt"],
     );
   },
-  "getOperandAt": function (expr, index) {
+  "getOperandAt"(expr, index) {
     return Module["_BinaryenTupleMakeGetOperandAt"](expr, index);
   },
-  "setOperandAt": function (expr, index, operandExpr) {
+  "setOperandAt"(expr, index, operandExpr) {
     Module["_BinaryenTupleMakeSetOperandAt"](expr, index, operandExpr);
   },
-  "appendOperand": function (expr, operandExpr) {
+  "appendOperand"(expr, operandExpr) {
     return Module["_BinaryenTupleMakeAppendOperand"](expr, operandExpr);
   },
-  "insertOperandAt": function (expr, index, operandExpr) {
+  "insertOperandAt"(expr, index, operandExpr) {
     Module["_BinaryenTupleMakeInsertOperandAt"](expr, index, operandExpr);
   },
-  "removeOperandAt": function (expr, index) {
+  "removeOperandAt"(expr, index) {
     return Module["_BinaryenTupleMakeRemoveOperandAt"](expr, index);
   },
 });
@@ -8210,74 +8421,74 @@ Module["TupleMake"] = makeExpressionWrapper(Module["_BinaryenTupleMakeId"](), {
 Module["TupleExtract"] = makeExpressionWrapper(
   Module["_BinaryenTupleExtractId"](),
   {
-    "getTuple": function (expr) {
+    "getTuple"(expr) {
       return Module["_BinaryenTupleExtractGetTuple"](expr);
     },
-    "setTuple": function (expr, tupleExpr) {
+    "setTuple"(expr, tupleExpr) {
       Module["_BinaryenTupleExtractSetTuple"](expr, tupleExpr);
     },
-    "getIndex": function (expr) {
+    "getIndex"(expr) {
       return Module["_BinaryenTupleExtractGetIndex"](expr);
     },
-    "setIndex": function (expr, index) {
+    "setIndex"(expr, index) {
       Module["_BinaryenTupleExtractSetIndex"](expr, index);
     },
   },
 );
 
 Module["RefI31"] = makeExpressionWrapper(Module["_BinaryenRefI31Id"](), {
-  "getValue": function (expr) {
+  "getValue"(expr) {
     return Module["_BinaryenRefI31GetValue"](expr);
   },
-  "setValue": function (expr, valueExpr) {
+  "setValue"(expr, valueExpr) {
     Module["_BinaryenRefI31SetValue"](expr, valueExpr);
   },
 });
 
 Module["I31Get"] = makeExpressionWrapper(Module["_BinaryenI31GetId"](), {
-  "getI31": function (expr) {
+  "getI31"(expr) {
     return Module["_BinaryenI31GetGetI31"](expr);
   },
-  "setI31": function (expr, i31Expr) {
+  "setI31"(expr, i31Expr) {
     Module["_BinaryenI31GetSetI31"](expr, i31Expr);
   },
-  "isSigned": function (expr) {
+  "isSigned"(expr) {
     return Boolean(Module["_BinaryenI31GetIsSigned"](expr));
   },
-  "setSigned": function (expr, isSigned) {
+  "setSigned"(expr, isSigned) {
     Module["_BinaryenI31GetSetSigned"](expr, isSigned);
   },
 });
 
 Module["CallRef"] = makeExpressionWrapper(Module["_BinaryenCallRefId"](), {
-  "getNumOperands": function (expr) {
+  "getNumOperands"(expr) {
     return Module["_BinaryenCallRefGetNumOperands"](expr);
   },
-  "getOperandAt": function (expr, index) {
+  "getOperandAt"(expr, index) {
     return Module["_BinaryenCallRefGetOperandAt"](expr, index);
   },
-  "setOperandAt": function (expr, index, operandExpr) {
+  "setOperandAt"(expr, index, operandExpr) {
     Module["_BinaryenCallRefSetOperandAt"](expr, index, operandExpr);
   },
-  "appendOperand": function (expr, operandExpr) {
+  "appendOperand"(expr, operandExpr) {
     return Module["_BinaryenCallRefAppendOperand"](expr, operandExpr);
   },
-  "insertOperandAt": function (expr, index, operandExpr) {
+  "insertOperandAt"(expr, index, operandExpr) {
     Module["_BinaryenCallRefInsertOperandAt"](expr, index, operandExpr);
   },
-  "removeOperandAt": function (expr, index) {
+  "removeOperandAt"(expr, index) {
     return Module["_BinaryenCallRefRemoveOperandAt"](expr, index);
   },
-  "getTarget": function (expr) {
+  "getTarget"(expr) {
     return Module["_BinaryenCallRefGetTarget"](expr);
   },
-  "setTarget": function (expr, targetExpr) {
+  "setTarget"(expr, targetExpr) {
     Module["_BinaryenCallRefSetTarget"](expr, targetExpr);
   },
-  "isReturn": function (expr) {
+  "isReturn"(expr) {
     return Boolean(Module["_BinaryenCallRefIsReturn"](expr));
   },
-  "setReturn": function (expr, isReturn) {
+  "setReturn"(expr, isReturn) {
     Module["_BinaryenCallRefSetReturn"](expr, isReturn);
   },
 });
@@ -8338,6 +8549,129 @@ Module["Function"] = (() => {
     return this[thisPtr];
   };
   return Function;
+})();
+
+// Table wrapper
+Module["Table"] = (() => {
+  /** @constructor */
+  function Table(table) {
+    if (!(this instanceof Table)) {
+      if (!table) return null;
+      return new Table(table);
+    }
+    if (!table) throw Error("table reference must not be null");
+    this[thisPtr] = table;
+  }
+  /**
+   * Gets the name of the specified `Table`.
+   *
+   * @param {Table} table - The `Table` to get the name from.
+   *
+   * @return {string} The name of the `Table`.
+   */
+  Table["getName"] = function (table) {
+    return UTF8ToString(Module["_BinaryenTableGetName"](table));
+  };
+
+  /**
+   * Sets the name of the specified `Table`.
+   *
+   * @param {Table} table - The `Table` to set the name for.
+   * @param {string} name - The new name for the `Table`.
+   *
+   * @return {void}
+   */
+  Table["setName"] = function (table, name) {
+    preserveStack(() => {
+      Module["_BinaryenTableSetName"](table, strToStack(name));
+    });
+  };
+
+  /**
+   * Gets the initial number of pages of the specified `Table`.
+   *
+   * @param {Table} table - The `Table` to get the initial number of pages from.
+   *
+   * @return {number} The initial number of pages of the `Table`.
+   */
+  Table["getInitial"] = function (table) {
+    return Module["_BinaryenTableGetInitial"](table);
+  };
+
+  /**
+   * Sets the initial number of pages of the specified `Table`.
+   *
+   * @param {Table} table - The `Table` to set the initial number of pages for.
+   * @param {number} initial - The new initial number of pages for the `Table`.
+   *
+   * @return {void}
+   */
+  Table["setInitial"] = function (table, initial) {
+    Module["_BinaryenTableSetInitial"](table, initial);
+  };
+
+  /**
+   * Tests whether the specified `Table` has a maximum number of pages.
+   *
+   * @param {Table} table - The `Table` to test.
+   *
+   * @return {boolean} `true` if the `Table` has a maximum number of pages, `false` otherwise.
+   */
+  Table["hasMax"] = function (table) {
+    return Boolean(Module["_BinaryenTableHasMax"](table));
+  };
+
+  /**
+   * Gets the maximum number of pages of the specified `Table`.
+   *
+   * @param {Table} table - The `Table` to get the maximum number of pages from.
+   *
+   * @return {number} The maximum number of pages of the `Table`.
+   */
+  Table["getMax"] = function (table) {
+    return Module["_BinaryenTableGetMax"](table);
+  };
+
+  /**
+   * Sets the maximum number of pages of the specified `Table`.
+   *
+   * @param {Table} table - The `Table` to set the maximum number of pages for.
+   * @param {number} max - The new maximum number of pages for the `Table`.
+   *
+   * @return {void}
+   */
+  Table["setMax"] = function (table, max) {
+    return Module["_BinaryenTableSetMax"](table, max);
+  };
+
+  /**
+   * Gets the table type of the specified `Table`.
+   *
+   * @param {Table} table - The `Table` to get the type from.
+   *
+   * @return {number} The type of the `Table`.
+   */
+  Table["getType"] = function (table) {
+    return Module["_BinaryenTableGetType"](table);
+  };
+
+  /**
+   * Sets the table type of the specified `Table`.
+   *
+   * @param {Table} table - The `Table` to set the type for.
+   * @param {Type} tableType - The new type for the `Table`.
+   *
+   * @return {void}
+   */
+  Table["setType"] = function (table, tableType) {
+    return Module["_BinaryenTableSetType"](table, tableType);
+  };
+
+  deriveWrapperInstanceMembers(Table.prototype, Table);
+  Table.prototype["valueOf"] = function () {
+    return this[thisPtr];
+  };
+  return Table;
 })();
 
 // Additional customizations

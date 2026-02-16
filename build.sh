@@ -60,8 +60,8 @@ fi
 rm -rf ./binaryen
 git clone https://github.com/WebAssembly/binaryen.git
 cd ./binaryen
-# binaryen version 125
-git checkout 6ec7b5f9c615d3b224c67ae221d6812c8f8e1a96
+# binaryen version 126
+git checkout 0c9f9c14d07f9c58ed64c0874a64f9a1f1223a85
 git submodule update --init --recursive
 cd ..
 

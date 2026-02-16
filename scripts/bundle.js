@@ -7,7 +7,7 @@ const prelude = `/**
  */`;
 
 esbuild.build({
-  entryPoints: [ "./src/index.js" ],
+  entryPoints: ["./src/index.js"],
   bundle: true,
   minify: true,
   format: "esm",
@@ -15,6 +15,6 @@ esbuild.build({
   outfile: "./index.js",
   legalComments: "none",
   banner: {
-    js: prelude
+    js: prelude,
   },
 });
