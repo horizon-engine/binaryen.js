@@ -48,7 +48,6 @@ declare module binaryen {
 
   const enum ExpressionIds {
     Invalid,
-    Nop,
     Block,
     If,
     Loop,
@@ -62,8 +61,18 @@ declare module binaryen {
     GlobalSet,
     Load,
     Store,
-    AtomicRMW,
+    Const,
+    Unary,
+    Binary,
+    Select,
+    Drop,
+    Return,
+    MemorySize,
+    MemoryGrow,
+    Nop,
+    Unreachable,
     AtomicCmpxchg,
+    AtomicRMW,
     AtomicWait,
     AtomicNotify,
     AtomicFence,
@@ -78,16 +87,6 @@ declare module binaryen {
     DataDrop,
     MemoryCopy,
     MemoryFill,
-    Const,
-    Unary,
-    Binary,
-    Select,
-    Drop,
-    Return,
-    MemorySize,
-    MemoryGrow,
-    Unreachable,
-    Pop,
     RefNull,
     RefIsNull,
     RefFunc,
@@ -96,15 +95,12 @@ declare module binaryen {
     TableSet,
     TableSize,
     TableGrow,
-    TableFill,
-    TableCopy,
     Try,
-    TryTable,
     Throw,
     Rethrow,
-    ThrowRef,
     TupleMake,
     TupleExtract,
+    Pop,
     RefI31,
     I31Get,
     CallRef,
@@ -115,14 +111,14 @@ declare module binaryen {
     StructGet,
     StructSet,
     ArrayNew,
+    ArrayNewFixed,
     ArrayNewData,
     ArrayNewElem,
-    ArrayNewFixed,
     ArrayGet,
     ArraySet,
     ArrayLen,
-    ArrayCopy,
     ArrayFill,
+    ArrayCopy,
     ArrayInitData,
     ArrayInitElem,
     RefAs,
@@ -134,97 +130,91 @@ declare module binaryen {
     StringEq,
     StringWTF16Get,
     StringSliceWTF,
-    Resume,
   }
 
-  const InvalidId: ExpressionIds;
-  const NopId: ExpressionIds;
-  const BlockId: ExpressionIds;
-  const IfId: ExpressionIds;
-  const LoopId: ExpressionIds;
-  const BreakId: ExpressionIds;
-  const SwitchId: ExpressionIds;
-  const CallId: ExpressionIds;
-  const CallIndirectId: ExpressionIds;
-  const LocalGetId: ExpressionIds;
-  const LocalSetId: ExpressionIds;
-  const GlobalGetId: ExpressionIds;
-  const GlobalSetId: ExpressionIds;
-  const LoadId: ExpressionIds;
-  const StoreId: ExpressionIds;
-  const AtomicRMWId: ExpressionIds;
-  const AtomicCmpxchgId: ExpressionIds;
-  const AtomicWaitId: ExpressionIds;
-  const AtomicNotifyId: ExpressionIds;
-  const AtomicFenceId: ExpressionIds;
-  const SIMDExtractId: ExpressionIds;
-  const SIMDReplaceId: ExpressionIds;
-  const SIMDShuffleId: ExpressionIds;
-  const SIMDTernaryId: ExpressionIds;
-  const SIMDShiftId: ExpressionIds;
-  const SIMDLoadId: ExpressionIds;
-  const SIMDLoadStoreLaneId: ExpressionIds;
-  const MemoryInitId: ExpressionIds;
-  const DataDropId: ExpressionIds;
-  const MemoryCopyId: ExpressionIds;
-  const MemoryFillId: ExpressionIds;
-  const ConstId: ExpressionIds;
-  const UnaryId: ExpressionIds;
-  const BinaryId: ExpressionIds;
-  const SelectId: ExpressionIds;
-  const DropId: ExpressionIds;
-  const ReturnId: ExpressionIds;
-  const MemorySizeId: ExpressionIds;
-  const MemoryGrowId: ExpressionIds;
-  const UnreachableId: ExpressionIds;
-  const PopId: ExpressionIds;
-  const RefNullId: ExpressionIds;
-  const RefIsNullId: ExpressionIds;
-  const RefFuncId: ExpressionIds;
-  const RefEqId: ExpressionIds;
-  const TableGetId: ExpressionIds;
-  const TableSetId: ExpressionIds;
-  const TableSizeId: ExpressionIds;
-  const TableGrowId: ExpressionIds;
-  const TableFillId: ExpressionIds;
-  const TableCopyId: ExpressionIds;
-  const TryId: ExpressionIds;
-  const TryTableId: ExpressionIds;
-  const ThrowId: ExpressionIds;
-  const RethrowId: ExpressionIds;
-  const ThrowRefId: ExpressionIds;
-  const TupleMakeId: ExpressionIds;
-  const TupleExtractId: ExpressionIds;
-  const RefI31Id: ExpressionIds;
-  const I31GetId: ExpressionIds;
-  const CallRefId: ExpressionIds;
-  const RefTestId: ExpressionIds;
-  const RefCastId: ExpressionIds;
-  const BrOnId: ExpressionIds;
-  const StructNewId: ExpressionIds;
-  const StructGetId: ExpressionIds;
-  const StructSetId: ExpressionIds;
-  const ArrayNewId: ExpressionIds;
-  const ArrayNewDataId: ExpressionIds;
-  const ArrayNewElemId: ExpressionIds;
-  const ArrayNewFixedId: ExpressionIds;
-  const ArrayGetId: ExpressionIds;
-  const ArraySetId: ExpressionIds;
-  const ArrayLenId: ExpressionIds;
-  const ArrayCopyId: ExpressionIds;
-  const ArrayFillId: ExpressionIds;
-  const ArrayInitDataId: ExpressionIds;
-  const ArrayInitElemId: ExpressionIds;
-  const RefAsId: ExpressionIds;
-  const StringNewId: ExpressionIds;
-  const StringConstId: ExpressionIds;
-  const StringMeasureId: ExpressionIds;
-  const StringEncodeId: ExpressionIds;
-  const StringConcatId: ExpressionIds;
-  const StringEqId: ExpressionIds;
-  const StringWTF16GetId: ExpressionIds;
-  const StringSliceWTFId: ExpressionIds;
-  const ResumeId: ExpressionIds;
+  const InvalidID: ExpressionIds;
+  const BlockID: ExpressionIds;
+  const IfID: ExpressionIds;
+  const LoopID: ExpressionIds;
+  const BreakID: ExpressionIds;
+  const SwitchID: ExpressionIds;
+  const CallID: ExpressionIds;
+  const CallIndirectID: ExpressionIds;
+  const LocalGetID: ExpressionIds;
+  const LocalSetID: ExpressionIds;
+  const GlobalGetID: ExpressionIds;
+  const GlobalSetID: ExpressionIds;
+  const LoadID: ExpressionIds;
+  const StoreID: ExpressionIds;
+  const ConstID: ExpressionIds;
+  const UnaryID: ExpressionIds;
+  const BinaryID: ExpressionIds;
+  const SelectID: ExpressionIds;
+  const DropID: ExpressionIds;
+  const ReturnID: ExpressionIds;
+  const MemorySizeID: ExpressionIds;
+  const MemoryGrowID: ExpressionIds;
+  const NopID: ExpressionIds;
+  const UnreachableID: ExpressionIds;
+  const AtomicCmpxchgID: ExpressionIds;
+  const AtomicRMWID: ExpressionIds;
+  const AtomicWaitID: ExpressionIds;
+  const AtomicNotifyID: ExpressionIds;
+  const AtomicFenceID: ExpressionIds;
+  const SIMDExtractID: ExpressionIds;
+  const SIMDReplaceID: ExpressionIds;
+  const SIMDShuffleID: ExpressionIds;
+  const SIMDTernaryID: ExpressionIds;
+  const SIMDShiftID: ExpressionIds;
+  const SIMDLoadID: ExpressionIds;
+  const SIMDLoadStoreLaneID: ExpressionIds;
+  const MemoryInitID: ExpressionIds;
+  const DataDropID: ExpressionIds;
+  const MemoryCopyID: ExpressionIds;
+  const MemoryFillID: ExpressionIds;
+  const RefNullID: ExpressionIds;
+  const RefIsNullID: ExpressionIds;
+  const RefFuncID: ExpressionIds;
+  const RefEqID: ExpressionIds;
+  const TableGetID: ExpressionIds;
+  const TableSetID: ExpressionIds;
+  const TableSizeID: ExpressionIds;
+  const TableGrowID: ExpressionIds;
+  const TryID: ExpressionIds;
+  const ThrowID: ExpressionIds;
+  const RethrowID: ExpressionIds;
+  const TupleMakeID: ExpressionIds;
+  const TupleExtractID: ExpressionIds;
+  const PopID: ExpressionIds;
+  const RefI31ID: ExpressionIds;
+  const I31GetID: ExpressionIds;
+  const CallRefID: ExpressionIds;
+  const RefTestID: ExpressionIds;
+  const RefCastID: ExpressionIds;
+  const BrOnID: ExpressionIds;
+  const StructNewID: ExpressionIds;
+  const StructGetID: ExpressionIds;
+  const StructSetID: ExpressionIds;
+  const ArrayNewID: ExpressionIds;
+  const ArrayNewFixedID: ExpressionIds;
+  const ArrayNewDataID: ExpressionIds;
+  const ArrayNewElemID: ExpressionIds;
+  const ArrayGetID: ExpressionIds;
+  const ArraySetID: ExpressionIds;
+  const ArrayLenID: ExpressionIds;
+  const ArrayFillID: ExpressionIds;
+  const ArrayCopyID: ExpressionIds;
+  const ArrayInitDataID: ExpressionIds;
+  const ArrayInitElemID: ExpressionIds;
+  const RefAsID: ExpressionIds;
+  const StringNewID: ExpressionIds;
+  const StringConstID: ExpressionIds;
+  const StringMeasureID: ExpressionIds;
+  const StringEncodeID: ExpressionIds;
+  const StringConcatID: ExpressionIds;
+  const StringEqID: ExpressionIds;
+  const StringWTF16GetID: ExpressionIds;
+  const StringSliceWTFID: ExpressionIds;
 
   const enum ExternalKinds {
     Function,
@@ -240,14 +230,24 @@ declare module binaryen {
   const ExternalGlobal: ExternalKinds;
   const ExternalTag: ExternalKinds;
 
+  const enum MemoryOrder {
+    Unordered,
+    SeqCst,
+    AcqRel,
+  }
+
+  const Unordered: MemoryOrder;
+  const SeqCst: MemoryOrder;
+  const AcqRel: MemoryOrder;
+
   enum Features {
     MVP,
     Atomics,
-    BulkMemory,
     MutableGlobals,
     NontrappingFPToInt,
-    SignExt,
     SIMD128,
+    BulkMemory,
+    SignExt,
     ExceptionHandling,
     TailCall,
     ReferenceTypes,
@@ -263,6 +263,7 @@ declare module binaryen {
     FP16,
     BulkMemoryOpt,
     CallIndirectOverlong,
+    RelaxedAtomics,
     All,
   }
 
@@ -300,6 +301,14 @@ declare module binaryen {
     TruncSFloat64ToInt64,
     TruncUFloat64ToInt32,
     TruncUFloat64ToInt64,
+    TruncSatSFloat32ToInt32,
+    TruncSatSFloat32ToInt64,
+    TruncSatUFloat32ToInt32,
+    TruncSatUFloat32ToInt64,
+    TruncSatSFloat64ToInt32,
+    TruncSatSFloat64ToInt64,
+    TruncSatUFloat64ToInt32,
+    TruncSatUFloat64ToInt64,
     ReinterpretFloat32,
     ReinterpretFloat64,
     ConvertSInt32ToFloat32,
@@ -401,14 +410,6 @@ declare module binaryen {
     AtomicRMWOr,
     AtomicRMWXor,
     AtomicRMWXchg,
-    TruncSatSFloat32ToInt32,
-    TruncSatSFloat32ToInt64,
-    TruncSatUFloat32ToInt32,
-    TruncSatUFloat32ToInt64,
-    TruncSatSFloat64ToInt32,
-    TruncSatSFloat64ToInt64,
-    TruncSatUFloat64ToInt32,
-    TruncSatUFloat64ToInt64,
     SplatVecI8x16,
     ExtractLaneSVecI8x16,
     ExtractLaneUVecI8x16,
@@ -536,6 +537,11 @@ declare module binaryen {
     ExtMulHighSVecI16x8,
     ExtMulLowUVecI16x8,
     ExtMulHighUVecI16x8,
+    DotSVecI16x8ToVecI32x4,
+    ExtMulLowSVecI32x4,
+    ExtMulHighSVecI32x4,
+    ExtMulLowUVecI32x4,
+    ExtMulHighUVecI32x4,
     AbsVecI32x4,
     NegVecI32x4,
     AllTrueVecI32x4,
@@ -550,11 +556,6 @@ declare module binaryen {
     MinUVecI32x4,
     MaxSVecI32x4,
     MaxUVecI32x4,
-    DotSVecI16x8ToVecI32x4,
-    ExtMulLowSVecI32x4,
-    ExtMulHighSVecI32x4,
-    ExtMulLowUVecI32x4,
-    ExtMulHighUVecI32x4,
     AbsVecI64x2,
     NegVecI64x2,
     AllTrueVecI64x2,
@@ -714,6 +715,14 @@ declare module binaryen {
   const TruncSFloat64ToInt64: Operations;
   const TruncUFloat64ToInt32: Operations;
   const TruncUFloat64ToInt64: Operations;
+  const TruncSatSFloat32ToInt32: Operations;
+  const TruncSatSFloat32ToInt64: Operations;
+  const TruncSatUFloat32ToInt32: Operations;
+  const TruncSatUFloat32ToInt64: Operations;
+  const TruncSatSFloat64ToInt32: Operations;
+  const TruncSatSFloat64ToInt64: Operations;
+  const TruncSatUFloat64ToInt32: Operations;
+  const TruncSatUFloat64ToInt64: Operations;
   const ReinterpretFloat32: Operations;
   const ReinterpretFloat64: Operations;
   const ConvertSInt32ToFloat32: Operations;
@@ -815,14 +824,6 @@ declare module binaryen {
   const AtomicRMWOr: Operations;
   const AtomicRMWXor: Operations;
   const AtomicRMWXchg: Operations;
-  const TruncSatSFloat32ToInt32: Operations;
-  const TruncSatSFloat32ToInt64: Operations;
-  const TruncSatUFloat32ToInt32: Operations;
-  const TruncSatUFloat32ToInt64: Operations;
-  const TruncSatSFloat64ToInt32: Operations;
-  const TruncSatSFloat64ToInt64: Operations;
-  const TruncSatUFloat64ToInt32: Operations;
-  const TruncSatUFloat64ToInt64: Operations;
   const SplatVecI8x16: Operations;
   const ExtractLaneSVecI8x16: Operations;
   const ExtractLaneUVecI8x16: Operations;
@@ -950,6 +951,11 @@ declare module binaryen {
   const ExtMulHighSVecI16x8: Operations;
   const ExtMulLowUVecI16x8: Operations;
   const ExtMulHighUVecI16x8: Operations;
+  const DotSVecI16x8ToVecI32x4: Operations;
+  const ExtMulLowSVecI32x4: Operations;
+  const ExtMulHighSVecI32x4: Operations;
+  const ExtMulLowUVecI32x4: Operations;
+  const ExtMulHighUVecI32x4: Operations;
   const AbsVecI32x4: Operations;
   const NegVecI32x4: Operations;
   const AllTrueVecI32x4: Operations;
@@ -964,11 +970,6 @@ declare module binaryen {
   const MinUVecI32x4: Operations;
   const MaxSVecI32x4: Operations;
   const MaxUVecI32x4: Operations;
-  const DotSVecI16x8ToVecI32x4: Operations;
-  const ExtMulLowSVecI32x4: Operations;
-  const ExtMulHighSVecI32x4: Operations;
-  const ExtMulLowUVecI32x4: Operations;
-  const ExtMulHighUVecI32x4: Operations;
   const AbsVecI64x2: Operations;
   const NegVecI64x2: Operations;
   const AllTrueVecI64x2: Operations;
@@ -1078,6 +1079,8 @@ declare module binaryen {
   const RefAsNonNull: Operations;
   const RefAsExternInternalize: Operations;
   const RefAsExternExternalize: Operations;
+  const RefAsAnyConvertExtern: Operations;
+  const RefAsExternConvertAny: Operations;
   const BrOnNull: Operations;
   const BrOnNonNull: Operations;
   const BrOnCast: Operations;
@@ -1092,10 +1095,51 @@ declare module binaryen {
   const StringEqEqual: Operations;
   const StringEqCompare: Operations;
 
+  const enum SideEffects {
+    None,
+    Branches,
+    Calls,
+    ReadsLocal,
+    WritesLocal,
+    ReadsGlobal,
+    WritesGlobal,
+    ReadsMemory,
+    WritesMemory,
+    ReadsTable,
+    WritesTable,
+    ImplicitTrap,
+    IsAtomic,
+    Throws,
+    DanglingPop,
+    TrapsNeverHappen,
+    Any,
+  }
+
+  const None: SideEffects;
+  const Branches: SideEffects;
+  const Calls: SideEffects;
+  const ReadsLocal: SideEffects;
+  const WritesLocal: SideEffects;
+  const ReadsGlobal: SideEffects;
+  const WritesGlobal: SideEffects;
+  const ReadsMemory: SideEffects;
+  const WritesMemory: SideEffects;
+  const ReadsTable: SideEffects;
+  const WritesTable: SideEffects;
+  const ImplicitTrap: SideEffects;
+  const IsAtomic: SideEffects;
+  const Throws: SideEffects;
+  const DanglingPop: SideEffects;
+  const TrapsNeverHappen: SideEffects;
+  const Any: SideEffects;
+
   const enum ExpressionRunnerFlags {
     Default,
     PreserveSideeffects,
   }
+
+  const Default: ExpressionRunnerFlags;
+  const PreserveSideeffects: ExpressionRunnerFlags;
 
   type ElementSegmentRef = number;
   type ExpressionRef = number;
@@ -1109,7 +1153,7 @@ declare module binaryen {
     constructor();
     readonly ptr: number;
     block(
-      label: string | null,
+      name: string | null,
       children: ExpressionRef[],
       resultType?: Type,
     ): ExpressionRef;
@@ -1140,17 +1184,17 @@ declare module binaryen {
       operands: ExpressionRef[],
       returnType: Type,
     ): ExpressionRef;
-    return_call(
-      name: string,
-      operands: ExpressionRef[],
-      returnType: Type,
-    ): ExpressionRef;
     call_indirect(
       table: string,
       target: ExpressionRef,
       operands: ExpressionRef[],
       params: Type,
       results: Type,
+    ): ExpressionRef;
+    return_call(
+      name: string,
+      operands: ExpressionRef[],
+      returnType: Type,
     ): ExpressionRef;
     return_call_indirect(
       table: string,
@@ -2411,8 +2455,46 @@ declare module binaryen {
     structref: {
       pop(): ExpressionRef;
     };
-    array: {
+
+    arrayref: {
       pop(): ExpressionRef;
+    };
+
+    stringref {
+    pop(): ExpressionRef;
+    }
+
+    ref: {
+      null(type: Type): ExpressionRef;
+      is_null(value: ExpressionRef): ExpressionRef;
+      as_non_null(value: ExpressionRef): ExpressionRef;
+      func(name: string, type: Type): ExpressionRef;
+      i31(value: ExpressionRef): ExpressionRef;
+      eq(left: ExpressionRef, right: ExpressionRef): ExpressionRef;
+      test(value: ExpressionRef, castType: Type): ExpressionRef;
+      cast(value: ExpressionRef, castType: Type): ExpressionRef;
+    };
+    atomic: {
+      fence(): ExpressionRef;
+    };
+    tuple: {
+      make(elements: ExportRef[]): ExpressionRef;
+      extract(tuple: ExpressionRef, index: number): ExpressionRef;
+    };
+    i31: {
+      get_s(i31: ExpressionRef): ExpressionRef;
+      get_u(i31: ExpressionRef): ExpressionRef;
+    };
+    struct: {
+      "new"(
+        operands: ExpressionRef[],
+        type: HeapType
+      );
+      new_default(type: HeapType);
+      get(index: number, ref: ExpressionRef, type: Type, isSigned: boolean): ExpressionRef;
+      set(index: number, ref: ExpressionRef, value: ExpressionRef);
+    };
+    array: {
       "new"(
         type: HeapType,
         size: ExpressionRef,
@@ -2472,34 +2554,9 @@ declare module binaryen {
         size: ExpressionRef,
       );
     };
-    string: {
-      pop(): ExpressionRef;
-      const(value: string): ExpressionRef;
-      concat(left: ExpressionRef, right: ExpressionRef): ExpressionRef;
-      cmp(left: ExpressionRef, right: ExpressionRef): ExpressionRef;
-      eq(left: ExpressionRef, right: ExpressionRef): ExpressionRef;
-    };
-    ref: {
-      null(type: Type): ExpressionRef;
-      is_null(value: ExpressionRef): ExpressionRef;
-      as_non_null(value: ExpressionRef): ExpressionRef;
-      func(name: string, type: Type): ExpressionRef;
-      i31(value: ExpressionRef): ExpressionRef;
-      eq(left: ExpressionRef, right: ExpressionRef): ExpressionRef;
-    };
-    i31: {
-      get_s(i31: ExpressionRef): ExpressionRef;
-      get_u(i31: ExpressionRef): ExpressionRef;
-    };
-    atomic: {
-      fence(): ExpressionRef;
-    };
-    tuple: {
-      make(elements: ExportRef[]): ExpressionRef;
-      extract(tuple: ExpressionRef, index: number): ExpressionRef;
-    };
     Function: {
       getName(func: FunctionRef): string;
+      getType(func: FunctionRef): HeapType;
       getParams(func: FunctionRef): Type;
       getResults(func: FunctionRef): Type;
       getNumVars(func: FunctionRef): number;

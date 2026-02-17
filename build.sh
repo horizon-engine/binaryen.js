@@ -57,17 +57,39 @@ if ! command -v make >/dev/null 2>&1; then
     exit 1
 fi
 
-rm -rf ./binaryen
-git clone https://github.com/WebAssembly/binaryen.git
-cd ./binaryen
-# binaryen version 126
-git checkout 0c9f9c14d07f9c58ed64c0874a64f9a1f1223a85
-git submodule update --init --recursive
-cd ..
+force="false"
+while getopts "f" opt; do
+  case "$opt" in
+    f) force="true" ;;
+    *) echo "Usage: $0 [-f]"; exit 1 ;;
+  esac
+done
 
-# replace the binaryen.js-post.js file in the binaryen repo with the local patched version
-rm ./binaryen/src/js/binaryen.js-post.js
-cp ./patches/binaryen.js-post.js ./binaryen/src/js/binaryen.js-post.js
+rm -rf ./binaryen
+
+# Get the latest version of binaryen
+tag=$(git ls-remote --tags --sort='v:refname' https://github.com/WebAssembly/binaryen.git | tail -n1 | sed 's/.*\///')
+version=$(echo "$tag" | sed 's/[^0-9]//g')
+if [ -z "$version" ]; then
+    echo "Error: No numbers found in tag '$tag'" >&2
+    exit 1
+fi
+version="${version}.0.0"
+
+current_version=$(sed -n '2p' package.json | sed 's/.*"version": "\(.*\)".*/\1/')
+if [ "$version" = "$current_version" ] && [ "$force" = "false" ]; then
+    echo "binaryen.js is already up to date, run with -f to force a rebuild"
+    exit 0
+fi
+
+{
+    echo '{'
+    echo "  \"version\": \"$version\","
+    tail -n +3 package.json
+} > package.json.tmp
+mv package.json.tmp package.json
+
+git clone --branch "$tag" --depth 1 --recurse-submodules --shallow-submodules https://github.com/WebAssembly/binaryen.git
 
 cd ./binaryen
 
@@ -78,4 +100,4 @@ if ! (emcmake cmake -DBUILD_FOR_BROWSER=ON -DCMAKE_BUILD_TYPE=Release -DBUILD_TE
 fi
 cd ..
 
-rm -f ./index.js && npm install && npm run bundle && rm -rf ./binaryen && printf_green "Successfully built patched binaryen.js\n"
+rm -f ./index.js && npm install && npm run bundle && rm -rf ./binaryen && printf_green "Successfully built binaryen.js\n"
