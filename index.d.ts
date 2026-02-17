@@ -1,4 +1,4 @@
-declare module binaryen {
+declare namespace binaryen {
   type Type = number;
 
   const none: Type;
@@ -2455,15 +2455,12 @@ declare module binaryen {
     structref: {
       pop(): ExpressionRef;
     };
-
     arrayref: {
       pop(): ExpressionRef;
     };
-
-    stringref {
-    pop(): ExpressionRef;
-    }
-
+    stringref: {
+      pop(): ExpressionRef;
+    };
     ref: {
       null(type: Type): ExpressionRef;
       is_null(value: ExpressionRef): ExpressionRef;
@@ -2486,13 +2483,19 @@ declare module binaryen {
       get_u(i31: ExpressionRef): ExpressionRef;
     };
     struct: {
-      "new"(
-        operands: ExpressionRef[],
-        type: HeapType
-      );
-      new_default(type: HeapType);
-      get(index: number, ref: ExpressionRef, type: Type, isSigned: boolean): ExpressionRef;
-      set(index: number, ref: ExpressionRef, value: ExpressionRef);
+      "new"(operands: ExpressionRef[], type: HeapType): ExpressionRef;
+      new_default(type: HeapType): ExpressionRef;
+      get(
+        index: number,
+        ref: ExpressionRef,
+        type: Type,
+        isSigned: boolean,
+      ): ExpressionRef;
+      set(
+        index: number,
+        ref: ExpressionRef,
+        value: ExpressionRef,
+      ): ExpressionRef;
     };
     array: {
       "new"(
@@ -2531,28 +2534,28 @@ declare module binaryen {
         index: ExpressionRef,
         value: ExpressionRef,
         size: ExpressionRef,
-      );
+      ): ExpressionRef;
       copy(
         destRef: ExpressionRef,
         destIndex: ExpressionRef,
         srcRef: ExpressionRef,
         srcIndex: ExpressionRef,
         length: ExpressionRef,
-      );
+      ): ExpressionRef;
       init_data(
         name: string,
         ref: ExpressionRef,
         index: ExpressionRef,
         offset: ExpressionRef,
         size: ExpressionRef,
-      );
+      ): ExpressionRef;
       init_elem(
         name: string,
         ref: ExpressionRef,
         index: ExpressionRef,
         offset: ExpressionRef,
         size: ExpressionRef,
-      );
+      ): ExpressionRef;
     };
     Function: {
       getName(func: FunctionRef): string;
@@ -3119,26 +3122,6 @@ declare module binaryen {
 
   function getSideEffects(expr: ExpressionRef, features: Features): SideEffects;
 
-  const enum SideEffects {
-    None,
-    Branches,
-    Calls,
-    ReadsLocal,
-    WritesLocal,
-    ReadsGlobal,
-    WritesGlobal,
-    ReadsMemory,
-    WritesMemory,
-    ReadsTable,
-    WritesTable,
-    ImplicitTrap,
-    IsAtomic,
-    Throws,
-    DanglingPop,
-    TrapsNeverHappen,
-    Any,
-  }
-
   function emitText(expression: ExpressionRef | Module): string;
   function readBinary(data: Uint8Array): Module;
   function parseText(text: string): Module;
@@ -3259,7 +3242,10 @@ declare module binaryen {
     runAndDispose(expr: ExpressionRef): ExpressionRef;
   }
 
-  function BinaryenTypeFromHeapType(heapType: HeapType, nullable: bool): Type;
+  function BinaryenTypeFromHeapType(
+    heapType: HeapType,
+    nullable: boolean,
+  ): Type;
   function getHeapType(type: Type): HeapType;
 }
 
