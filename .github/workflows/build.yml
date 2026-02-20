@@ -1,0 +1,103 @@
+name: Build Binaryen
+
+on:
+  schedule:
+    - cron: "46 17 * * 1"
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+
+      - name: Get latest Binaryen tag
+        id: binaryen_tag
+        run: |
+          TAG=$(git ls-remote --tags --sort='v:refname' https://github.com/WebAssembly/binaryen.git | tail -n1 | sed 's/.*\///')
+          VERSION=$(echo "$TAG" | sed 's/[^0-9]//g')
+          if [ -z "$VERSION" ]; then
+            echo "Error: No numbers found in tag '$TAG'" >&2
+            exit 1
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=${VERSION}.0.0" >> $GITHUB_OUTPUT
+
+      - name: Check if rebuild is needed
+        id: check_version
+        run: |
+          CURRENT_VERSION=$(sed -n '2p' package.json | sed 's/.*"version": "\(.*\)".*/\1/')
+          NEW_VERSION="${{ steps.binaryen_tag.outputs.version }}"
+
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "rebuild=true" >> $GITHUB_OUTPUT
+            echo "Forcing rebuild due to push event"
+          elif [ "$NEW_VERSION" = "$CURRENT_VERSION" ]; then
+            echo "rebuild=false" >> $GITHUB_OUTPUT
+            echo "Already up to date at $CURRENT_VERSION"
+          else
+            echo "rebuild=true" >> $GITHUB_OUTPUT
+            echo "New version available: $NEW_VERSION (current: $CURRENT_VERSION)"
+          fi
+
+      - name: Update package.json version
+        if: steps.check_version.outputs.rebuild == 'true'
+        run: |
+          VERSION="${{ steps.binaryen_tag.outputs.version }}"
+          {
+            echo '{'
+            echo "  \"version\": \"$VERSION\","
+            tail -n +3 package.json
+          } > package.json.tmp
+          mv package.json.tmp package.json
+
+      - name: Clone Binaryen
+        if: steps.check_version.outputs.rebuild == 'true'
+        run: |
+          rm -rf ./binaryen
+          git clone --branch "${{ steps.binaryen_tag.outputs.tag }}" \
+            --depth 1 \
+            --recurse-submodules \
+            --shallow-submodules \
+            https://github.com/WebAssembly/binaryen.git
+
+      - name: Build Binaryen
+        if: steps.check_version.outputs.rebuild == 'true'
+        run: |
+          cd ./binaryen
+          emcmake cmake \
+            -DBUILD_FOR_BROWSER=ON \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTS=OFF \
+            -DCMAKE_EXE_LINKER_FLAGS="-sSINGLE_FILE" \
+            -DENABLE_WERROR=OFF .
+          emmake make
+
+      - name: Bundle
+        if: steps.check_version.outputs.rebuild == 'true'
+        run: |
+          rm -f ./index.js
+          npm install
+          npm run bundle
+          rm -rf ./binaryen
+
+      - name: Commit and push changes
+        if: steps.check_version.outputs.rebuild == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json index.js
+          git diff --staged --quiet || git commit -m "chore: update binaryen to ${{ steps.binaryen_tag.outputs.version }}"
+          git push
