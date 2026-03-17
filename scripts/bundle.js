@@ -11,7 +11,7 @@ esbuild.build({
   bundle: true,
   minify: true,
   format: "esm",
-  platform: "node", // Emscripten artifacts require path and fs, but don't use them
+  platform: "neutral",
   outfile: "./index.js",
   legalComments: "none",
   banner: {
